@@ -43,7 +43,6 @@ export function compactSdp(sdp: string): string {
     if (trimmed.startsWith("a=msid-semantic")) continue;
     if (trimmed.startsWith("a=ice-options:trickle")) continue;
     if (trimmed.startsWith("a=candidate:")) {
-      if (trimmed.includes(" typ relay ")) continue;
       if (trimmed.includes(" tcptype ")) continue;
       if (trimmed.includes("fe80:")) continue;
     }

@@ -10,8 +10,18 @@ import { CodeError, OFFER_TTL_MS, decodeConnection, dtlsFingerprints, encodeConn
 import { createIdentity, commitmentOf, deriveSessionKeys, openFrame, packEnvelope, sealFrame, unpackEnvelope, type Identity, type SessionKeys } from "./crypto";
 
 export const ICE_SERVERS: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
   { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:openrelay.metered.ca:80" },
+  {
+    urls: [
+      "turn:openrelay.metered.ca:80",
+      "turn:openrelay.metered.ca:443",
+      "turn:openrelay.metered.ca:443?transport=tcp",
+    ],
+    username: "openrelay",
+    credential: "openrelay",
+  },
 ];
 
 export type SessionState =
