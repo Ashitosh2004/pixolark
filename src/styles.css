@@ -1,0 +1,176 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-pixel: "Press Start 2P", ui-monospace, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-bg2: var(--bg2);
+  --color-pixel-dark: var(--pixel-dark);
+  --color-ring-offset-background: var(--background);
+}
+
+/* Palette: #111318 bg, #1B1E27 bg2, #242936 surface, #8FE388 primary, #FFD166 secondary,
+   #F5F5F5 text, #A1A8B5 muted, #FF6464 error */
+:root {
+  --radius: 0px;
+  --background: oklch(0.19 0.012 265);
+  --bg2: oklch(0.235 0.018 268);
+  --surface: oklch(0.285 0.024 268);
+  --foreground: oklch(0.97 0 0);
+  --card: var(--bg2);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.85 0.15 143);
+  --primary-foreground: oklch(0.19 0.012 265);
+  --secondary: oklch(0.88 0.14 85);
+  --secondary-foreground: oklch(0.19 0.012 265);
+  --muted: var(--surface);
+  --muted-foreground: oklch(0.73 0.02 260);
+  --accent: oklch(0.88 0.14 85);
+  --accent-foreground: oklch(0.19 0.012 265);
+  --destructive: oklch(0.7 0.19 22);
+  --destructive-foreground: oklch(0.19 0.012 265);
+  --border: oklch(0.12 0.01 265);
+  --input: var(--surface);
+  --ring: oklch(0.85 0.15 143);
+  --pixel-dark: oklch(0.12 0.01 265);
+  --pixel-hi: oklch(1 0 0 / 0.18);
+  --pixel-lo: oklch(0 0 0 / 0.35);
+}
+
+.light {
+  --background: oklch(0.95 0.015 95);
+  --bg2: oklch(0.91 0.02 95);
+  --surface: oklch(0.985 0.008 95);
+  --foreground: oklch(0.2 0.015 265);
+  --muted-foreground: oklch(0.45 0.02 260);
+  --primary: oklch(0.62 0.15 143);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.8 0.15 80);
+  --border: oklch(0.25 0.015 265);
+  --pixel-dark: oklch(0.25 0.015 265);
+  --pixel-hi: oklch(1 0 0 / 0.5);
+  --pixel-lo: oklch(0 0 0 / 0.15);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body { height: 100%; }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  img.pixelated, .pixelated img, svg.pixelated { image-rendering: pixelated; }
+}
+
+@layer components {
+  .font-pixel { font-family: var(--font-pixel); letter-spacing: 0.02em; line-height: 1.6; }
+  .pixel-box {
+    background: var(--bg2);
+    box-shadow:
+      0 -4px 0 0 var(--pixel-dark), 0 4px 0 0 var(--pixel-dark),
+      -4px 0 0 0 var(--pixel-dark), 4px 0 0 0 var(--pixel-dark),
+      inset 0 4px 0 0 var(--pixel-hi), inset 0 -4px 0 0 var(--pixel-lo);
+  }
+  .pixel-surface { background: var(--surface); box-shadow: 0 -3px 0 0 var(--pixel-dark), 0 3px 0 0 var(--pixel-dark), -3px 0 0 0 var(--pixel-dark), 3px 0 0 0 var(--pixel-dark); }
+  .pixel-btn {
+    font-family: var(--font-pixel);
+    font-size: 10px; line-height: 1.4; text-transform: uppercase;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 16px; cursor: pointer; user-select: none;
+    background: var(--surface); color: var(--foreground);
+    box-shadow:
+      0 -3px 0 0 var(--pixel-dark), 0 3px 0 0 var(--pixel-dark),
+      -3px 0 0 0 var(--pixel-dark), 3px 0 0 0 var(--pixel-dark),
+      inset -3px -3px 0 0 var(--pixel-lo), inset 3px 3px 0 0 var(--pixel-hi);
+    transition: transform 60ms steps(2), filter 120ms;
+  }
+  .pixel-btn:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-2px); }
+  .pixel-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 -3px 0 0 var(--pixel-dark), 0 3px 0 0 var(--pixel-dark), -3px 0 0 0 var(--pixel-dark), 3px 0 0 0 var(--pixel-dark), inset 3px 3px 0 0 var(--pixel-lo); }
+  .pixel-btn:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.6); }
+  .pixel-btn:focus-visible { outline: 3px solid var(--secondary); outline-offset: 5px; }
+  .pixel-btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .pixel-btn-gold { background: var(--secondary); color: var(--secondary-foreground); }
+  .pixel-btn-danger { background: var(--destructive); color: var(--destructive-foreground); }
+  .pixel-btn-sm { padding: 8px 10px; font-size: 8px; }
+  .pixel-icon-btn { padding: 8px; min-width: 38px; min-height: 38px; }
+  .pixel-input {
+    width: 100%; background: var(--background); color: var(--foreground);
+    padding: 10px 12px; font-size: 14px; outline: none;
+    box-shadow: 0 -3px 0 0 var(--pixel-dark), 0 3px 0 0 var(--pixel-dark), -3px 0 0 0 var(--pixel-dark), 3px 0 0 0 var(--pixel-dark), inset 3px 3px 0 0 var(--pixel-lo);
+  }
+  .pixel-input:focus { box-shadow: 0 -3px 0 0 var(--primary), 0 3px 0 0 var(--primary), -3px 0 0 0 var(--primary), 3px 0 0 0 var(--primary), inset 3px 3px 0 0 var(--pixel-lo); }
+  .bubble-me { background: var(--primary); color: var(--primary-foreground); }
+  .bubble-peer { background: var(--surface); color: var(--foreground); }
+  .bubble { position: relative; box-shadow: 0 -3px 0 0 var(--pixel-dark), 0 3px 0 0 var(--pixel-dark), -3px 0 0 0 var(--pixel-dark), 3px 0 0 0 var(--pixel-dark); }
+  .pixel-label { font-family: var(--font-pixel); font-size: 8px; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.06em; }
+  .pixel-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+  .pixel-scroll::-webkit-scrollbar-thumb { background: var(--surface); border: 2px solid var(--pixel-dark); }
+  .pixel-scroll::-webkit-scrollbar-track { background: var(--background); }
+  .pixel-tab[data-active="true"] { background: var(--primary); color: var(--primary-foreground); }
+}
+
+@keyframes px-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+@keyframes px-drift { from { transform: translateX(-20vw); } to { transform: translateX(120vw); } }
+@keyframes px-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes px-walk { from { transform: translateX(0); } to { transform: translateX(calc(100vw - 48px)); } }
+@keyframes px-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes px-pop { 0% { transform: scale(0.8); opacity: 0; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes px-dots { 0% { content: ""; } 33% { content: "."; } 66% { content: ".."; } 100% { content: "..."; } }
+@keyframes px-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+
+@utility animate-twinkle { animation: px-twinkle 2.4s steps(4) infinite; }
+@utility animate-drift { animation: px-drift 60s linear infinite; }
+@utility animate-bob { animation: px-bob 1.2s steps(3) infinite; }
+@utility animate-blink { animation: px-blink 1s steps(1) infinite; }
+@utility animate-pop { animation: px-pop 220ms steps(4) both; }
+@utility animate-load { animation: px-load 1.2s steps(6) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+/* Watermark & branding badge suppression */
+#lovable-badge,
+.lovable-badge,
+[data-lovable-badge],
+[data-lovable],
+[class*="lovable-badge"],
+[id*="lovable-badge"],
+a[href*="lovable.dev"],
+iframe[src*="lovable.dev"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

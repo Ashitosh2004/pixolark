@@ -1,0 +1,64 @@
+{
+ "version": "pxs1-8c5cca10bcf4",
+ "generatedAt": "2026-11-12T18:40:59.028Z",
+ "total": 1052,
+ "verified": 1052,
+ "animated": 1052,
+ "missing": 0,
+ "invalid": 0,
+ "duplicates": 0,
+ "bytes": 3575543,
+ "byCategory": {
+  "love": {
+   "verified": 112,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "cute": {
+   "verified": 120,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "memes": {
+   "verified": 120,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "animals": {
+   "verified": 120,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "couple": {
+   "verified": 112,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "friends": {
+   "verified": 104,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "reactions": {
+   "verified": 112,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "daily": {
+   "verified": 84,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "gaming": {
+   "verified": 84,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "festivals": {
+   "verified": 84,
+   "invalid": 0,
+   "duplicates": 0
+  }
+ },
+ "problems": []
+}
