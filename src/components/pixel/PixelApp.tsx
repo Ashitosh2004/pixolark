@@ -15,12 +15,20 @@ import { randomAvatar } from "@/lib/pixel/pixelart";
 
 type Stage = "lobby" | "host" | "join" | "chat";
 
-export default function PixelApp({ mode }: { mode?: "create" | "join" | undefined }) {
+export default function PixelApp({
+  mode,
+  initialCode,
+  initialRoom,
+}: {
+  mode?: "create" | "join" | undefined;
+  initialCode?: string | undefined;
+  initialRoom?: string | undefined;
+}) {
   const [prefs, setPrefsState] = useState<Prefs>(() => loadPrefs());
   const [stage, setStage] = useState<Stage>("lobby");
   const [session, setSession] = useState<PeerSession | null>(null);
   const [sessState, setSessState] = useState<SessionState>("preparing");
-  const [roomId, setRoomId] = useState("");
+  const [roomId, setRoomId] = useState(initialRoom ?? "");
   const [busy, setBusy] = useState(false);
   const [settings, setSettings] = useState<{ open: boolean; tab?: "security" | "profile" | undefined }>({ open: false });
   const [muted, setMuted] = useState(false);
@@ -105,7 +113,7 @@ export default function PixelApp({ mode }: { mode?: "create" | "join" | undefine
     if (autoRan.current) return;
     autoRan.current = true;
     if (mode === "create") void createRoom();
-    else if (mode === "join") setStage("join");
+    else if (mode === "join" || initialCode) setStage("join");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -195,7 +203,15 @@ export default function PixelApp({ mode }: { mode?: "create" | "join" | undefine
 
       {stage === "host" && session && session.role === "host" && <HostWait session={session} onBack={leave} />}
       {stage === "host" && busy && <div className="py-20"><Loader label="Generating room" /></div>}
-      {stage === "join" && <GuestJoin session={session?.role === "guest" ? session : null} onJoin={joinRoom} onBack={leave} initialRoom={roomId} />}
+      {stage === "join" && (
+        <GuestJoin
+          session={session?.role === "guest" ? session : null}
+          onJoin={joinRoom}
+          onBack={leave}
+          initialRoom={initialRoom || roomId}
+          initialCode={initialCode}
+        />
+      )}
       {stage === "chat" && (
         <ChatView
           api={api} session={session} sessState={sessState} prefs={prefs} setPrefs={setPrefs} roomId={roomId}

@@ -4,7 +4,6 @@ import { b64url, fromB64url, te, td } from "./bytes";
 
 const PREFIX = "PXC1.";
 export const OFFER_TTL_MS = 15 * 60 * 1000;
-const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export interface ConnectionPayload {
   v: 1;
@@ -16,10 +15,11 @@ export interface ConnectionPayload {
   sid: string; // session id, prevents duplicate/mismatched answers
 }
 
+/** Generates a simple 6-digit room code (e.g. "582914"). */
 export function generateRoomId(): string {
-  const r = crypto.getRandomValues(new Uint8Array(10));
-  const chars = Array.from(r, (x) => ALPHA[x % 32]).join("");
-  return `PX-${chars.slice(0, 5)}-${chars.slice(5)}`;
+  const bytes = crypto.getRandomValues(new Uint32Array(1));
+  const num = (bytes[0] % 900000) + 100000;
+  return `${num}`;
 }
 
 export function normalizeRoomId(s: string): string {
@@ -27,7 +27,29 @@ export function normalizeRoomId(s: string): string {
 }
 
 export function isValidRoomId(s: string): boolean {
-  return /^PX-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/.test(normalizeRoomId(s));
+  const n = normalizeRoomId(s);
+  // Validates 6-digit code (e.g. 123456), PX-6digits, or legacy PX-XXXXX-XXXXX format
+  return /^\d{6}$/.test(n) || /^PX-\d{6}$/.test(n) || /^PX-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/.test(n);
+}
+
+/** Strip unnecessary SDP lines to minimize payload size for QR codes and fast copy/paste. */
+export function compactSdp(sdp: string): string {
+  const lines = sdp.split(/\r?\n/);
+  const kept: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith("a=extmap-allow-mixed")) continue;
+    if (trimmed.startsWith("a=msid-semantic")) continue;
+    if (trimmed.startsWith("a=ice-options:trickle")) continue;
+    if (trimmed.startsWith("a=candidate:")) {
+      if (trimmed.includes(" typ relay ")) continue;
+      if (trimmed.includes(" tcptype ")) continue;
+      if (trimmed.includes("fe80:")) continue;
+    }
+    kept.push(trimmed);
+  }
+  return kept.join("\r\n") + "\r\n";
 }
 
 async function compress(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
@@ -41,13 +63,19 @@ async function decompress(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array<Arr
 }
 
 export async function encodeConnection(p: ConnectionPayload): Promise<string> {
-  return PREFIX + b64url(await compress(te.encode(JSON.stringify(p))));
+  const payload: ConnectionPayload = {
+    ...p,
+    sdp: compactSdp(p.sdp),
+  };
+  return PREFIX + b64url(await compress(te.encode(JSON.stringify(payload))));
 }
 
 export class CodeError extends Error {}
 
 export async function decodeConnection(code: string): Promise<ConnectionPayload> {
-  const c = code.trim().replace(/\s+/g, "");
+  // Extract PXC1 token even if user pasted extra text, URL, or spaces
+  const match = code.match(/PXC1\.[A-Za-z0-9_-]+/);
+  const c = match ? match[0] : code.trim().replace(/\s+/g, "");
   if (!c.startsWith(PREFIX)) throw new CodeError("This doesn't look like a Pixolark connection code.");
   let p: ConnectionPayload;
   try {

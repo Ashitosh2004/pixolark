@@ -6,7 +6,7 @@
  * The `Signaler` abstraction lets a self-hosted signaling server replace manual codes later.
  */
 import { b64url, fromB64url } from "./bytes";
-import { CodeError, OFFER_TTL_MS, decodeConnection, dtlsFingerprints, encodeConnection, type ConnectionPayload } from "./codec";
+import { CodeError, OFFER_TTL_MS, decodeConnection, dtlsFingerprints, encodeConnection, normalizeRoomId, type ConnectionPayload } from "./codec";
 import { createIdentity, commitmentOf, deriveSessionKeys, openFrame, packEnvelope, sealFrame, unpackEnvelope, type Identity, type SessionKeys } from "./crypto";
 
 export const ICE_SERVERS: RTCIceServer[] = [
@@ -33,7 +33,7 @@ type Events = {
   presence: boolean;
 };
 
-const CONNECT_TIMEOUT_MS = 45_000;
+const CONNECT_TIMEOUT_MS = 120_000; // 2 minutes connection timeout
 const HIGH_WATER = 4 * 1024 * 1024;
 const LOW_WATER = 512 * 1024;
 
@@ -115,7 +115,9 @@ export class PeerSession {
   static async join(roomId: string, offerCode: string): Promise<PeerSession> {
     const p = await decodeConnection(offerCode);
     if (p.kind !== "offer") throw new CodeError("That is an answer code. Paste the code from the room creator.");
-    if (p.room !== roomId) throw new CodeError(`This code belongs to room ${p.room}, not ${roomId}. Check the Room ID.`);
+    if (p.room !== roomId && normalizeRoomId(p.room) !== normalizeRoomId(roomId)) {
+      throw new CodeError(`This code belongs to room ${p.room}, not ${roomId}. Check the Room code.`);
+    }
     const s = new PeerSession(roomId, "guest");
     s.identity = await createIdentity();
     s.sid = p.sid;
@@ -137,8 +139,10 @@ export class PeerSession {
   /** Host: apply the guest's answer code. */
   async acceptAnswer(code: string) {
     const p: ConnectionPayload = await decodeConnection(code);
-    if (p.kind !== "answer") throw new CodeError("That is your own offer code. Paste the ANSWER code your friend sends back.");
-    if (p.room !== this.roomId) throw new CodeError("This answer belongs to a different room.");
+    if (p.kind !== "answer") throw new CodeError("That is an invite code. Paste the ANSWER code your friend sends back.");
+    if (p.room !== this.roomId && normalizeRoomId(p.room) !== normalizeRoomId(this.roomId)) {
+      throw new CodeError("This answer belongs to a different room.");
+    }
     if (p.sid !== this.sid) throw new CodeError("This answer was made for an older invite. Ask your friend to scan the current one.");
     if (this.answered) throw new CodeError("A peer is already connected to this invite. Duplicate connection blocked.");
     this.answered = true;

@@ -14,7 +14,7 @@
 - **Decentralized & Serverless:** Direct peer-to-peer communication via WebRTC. No central message relay or server database.
 - **End-to-End Encrypted (E2EE):** AES-GCM-256 with ephemeral ECDH P-256 key exchange and HKDF-SHA-256 key derivation.
 - **Clean & Unbranded:** Independent, unbranded interface with zero watermarks, tracking scripts, or vendor badges.
-- **Rooms & Manual Signaling:** Join via room IDs and exchange manual invite/answer codes (via text copy or QR codes).
+- **Rooms & Manual Signaling:** Simple 6-digit room codes (e.g. `582914`), 1-click invite links, compact QR codes, and copyable invite/answer codes with an extended 2-minute connection window.
 - **Rich Media & File Sharing:** Encrypted file transfer (up to 250 MB) chunked with backpressure handling.
 - **Voice & Video Calls:** WebRTC DTLS-SRTP audio/video calls renegotiated directly over the secure channel.
 - **Pixel Sticker Library:** Over 1,000 animated pixel stickers across 10 categories with custom packs, favorites, and search.
