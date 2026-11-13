@@ -1,16 +1,42 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Phone, SwitchCamera, Volume2, VolumeX, Signal } from "lucide-react";
 import type { PeerSession } from "@/lib/pixel/session";
 import type { ChatApi } from "./useChat";
 import type { PeerProfile } from "./types";
 import { AvatarImg } from "./ui";
 import { randomAvatar } from "@/lib/pixel/pixelart";
+import { cn } from "@/lib/utils";
 
-function VideoEl({ stream, muted, className, volume = 1, sinkId }: { stream: MediaStream | null; muted?: boolean; className?: string; volume?: number; sinkId?: string }) {
+function VideoEl({ stream, muted, className, volume = 1, sinkId, onPlayingChange }: { stream: MediaStream | null; muted?: boolean; className?: string; volume?: number; sinkId?: string; onPlayingChange?: (playing: boolean) => void }) {
   const ref = useRef<HTMLVideoElement>(null);
-  useEffect(() => { if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream; }, [stream]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    if (!stream) return;
+    // Mobile browsers (iOS Safari in particular) stall a WebRTC <video> that was
+    // hidden or not yet rendering when the stream attached. Keep nudging play()
+    // until it sticks; a later tap anywhere also resumes it.
+    const tryPlay = () => { if (el.paused) void el.play().catch(() => {}); };
+    tryPlay();
+    const iv = window.setInterval(tryPlay, 500);
+    const onDown = () => tryPlay();
+    window.addEventListener("pointerdown", onDown);
+    return () => { window.clearInterval(iv); window.removeEventListener("pointerdown", onDown); };
+  }, [stream]);
   useEffect(() => { if (ref.current) ref.current.volume = volume; }, [volume]);
   useEffect(() => { const el: any = ref.current; if (el && sinkId && el.setSinkId) el.setSinkId(sinkId).catch(() => {}); }, [sinkId]);
+  // Report actual playback state — track.muted alone misses frames that arrive later.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !onPlayingChange) return;
+    if (!stream) { onPlayingChange(false); return; }
+    const report = () => onPlayingChange(!el.paused && !el.ended);
+    report();
+    const evs = ["playing", "pause", "waiting", "ended"] as const;
+    evs.forEach((e) => el.addEventListener(e, report));
+    return () => evs.forEach((e) => el.removeEventListener(e, report));
+  }, [onPlayingChange, stream]);
   return <video ref={ref} autoPlay playsInline muted={muted} className={className} />;
 }
 
@@ -24,6 +50,20 @@ export function CallOverlay({ api, session, peer }: { api: ChatApi; session: Pee
   const [sink, setSink] = useState("");
   const [hasMultiCam, setHasMultiCam] = useState(false);
   const [peerAvatar] = useState(randomAvatar);
+  const [remotePlaying, setRemotePlaying] = useState(false);
+  const [, force] = useState(0);
+  const onRemotePlaying = useCallback((p: boolean) => setRemotePlaying(p), []);
+
+  useEffect(() => {
+    // React doesn't observe track mute/unmute — re-render when remote video
+    // actually starts/stops sending frames (tracks arrive muted on mobile).
+    const s = api.remoteStream;
+    if (!s) { setRemotePlaying(false); return; }
+    const bump = () => force((x) => x + 1);
+    const tracks = s.getVideoTracks();
+    tracks.forEach((t) => { t.addEventListener("mute", bump); t.addEventListener("unmute", bump); });
+    return () => tracks.forEach((t) => { t.removeEventListener("mute", bump); t.removeEventListener("unmute", bump); });
+  }, [api.remoteStream]);
 
   useEffect(() => {
     if (call.phase !== "active") return;
@@ -38,7 +78,7 @@ export function CallOverlay({ api, session, peer }: { api: ChatApi; session: Pee
   if (call.phase === "idle") return null;
   const name = peer?.name ?? "Friend";
   const avatar = peer?.avatar ?? peerAvatar;
-  const remoteHasVideo = !!api.remoteStream?.getVideoTracks().some((t) => t.readyState === "live" && !t.muted);
+  const remoteHasVideo = (!!api.remoteStream?.getVideoTracks().some((t) => t.readyState === "live" && !t.muted)) || remotePlaying;
   const dur = call.startedAt ? Math.floor((now - call.startedAt) / 1000) : 0;
   const quality = rtt == null ? "…" : rtt < 150 ? "Good" : rtt < 350 ? "Fair" : "Poor";
 
@@ -62,9 +102,11 @@ export function CallOverlay({ api, session, peer }: { api: ChatApi; session: Pee
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="relative flex-1 overflow-hidden bg-pixel-dark">
-        <VideoEl stream={api.remoteStream} muted={speakerOff} volume={vol} sinkId={sink} className={remoteHasVideo ? "h-full w-full object-contain" : "hidden"} />
+        {/* Keep the remote element always rendered — display:none stalls WebRTC
+            video on mobile browsers. Fade it in/out instead. */}
+        <VideoEl stream={api.remoteStream} muted={speakerOff} volume={vol} sinkId={sink} onPlayingChange={onRemotePlaying} className={cn("h-full w-full object-contain", !remoteHasVideo && "opacity-0")} />
         {!remoteHasVideo && (
-          <div className="flex h-full flex-col items-center justify-center gap-4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
             <AvatarImg avatar={avatar} size={128} className="animate-bob" />
             <div className="text-lg font-semibold">{name}</div>
           </div>
@@ -81,8 +123,6 @@ export function CallOverlay({ api, session, peer }: { api: ChatApi; session: Pee
           )}
           <span className="pixel-surface px-3 py-1 text-[10px] text-muted-foreground">DTLS-SRTP encrypted · direct P2P</span>
         </div>
-        {/* Hidden audio sink for voice-only calls */}
-        {!remoteHasVideo && api.remoteStream && <VideoEl stream={api.remoteStream} muted={speakerOff} volume={vol} sinkId={sink} className="hidden" />}
       </div>
       <div className="flex flex-wrap items-center justify-center gap-3 border-t-4 border-border bg-bg2 p-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <button className="pixel-btn pixel-icon-btn" onClick={api.toggleMic} aria-label={call.micOn ? "Mute microphone" : "Unmute microphone"}>{call.micOn ? <Mic size={18} /> : <MicOff size={18} className="text-destructive" />}</button>
