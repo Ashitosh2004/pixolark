@@ -134,7 +134,6 @@ export function SettingsPanel(p: SettingsProps) {
               <Toggle scope="local" label="Auto-delete saved history after 24 hours" checked={p.prefs.autoDelete24h} onChange={(v) => up("autoDelete24h", v)} />
               <Toggle scope="local" label="Mute this conversation" desc="No sounds or notifications." checked={p.muted} onChange={p.setMuted} />
               <Toggle scope="local" label="Block incoming messages" desc="Drops messages, files and calls from this session. The other person isn't told." checked={p.blocked} onChange={p.setBlocked} />
-              <Toggle scope="local" label="GIF search (GIPHY)" desc="Sends search terms and your IP to GIPHY. Not end-to-end encrypted. Uses the API key built into this app (.env)." checked={p.prefs.giphyEnabled} onChange={(v) => up("giphyEnabled", v)} />
               <label className="flex items-center justify-between gap-4 py-2"><span className="text-sm">Auto-disconnect session after</span>
                 <select className="pixel-input !w-32 text-sm" value={p.prefs.sessionHours} onChange={(e) => up("sessionHours", Number(e.target.value))}>
                   {[0.5, 1, 2, 4, 8, 24].map((h) => <option key={h} value={h}>{h < 1 ? "30 min" : `${h} h`}</option>)}

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { Star, Upload, Trash2, Search, ShieldAlert } from "lucide-react";
+import { Star, Upload, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { STICKERS, STICKER_CATEGORIES, stickerSrc } from "@/lib/pixel/stickers";
 import { randomId } from "@/lib/pixel/bytes";
@@ -139,15 +139,14 @@ function blobToDataUrl(b: Blob): Promise<string> {
 
 interface GifResult { id: string; preview: string; full: string; title: string }
 
-function GifTab({ prefs, setPrefs, onGif }: Props) {
+function GifTab({ onGif }: Props) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const enabled = prefs.giphyEnabled && GIPHY_API_KEY;
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!GIPHY_API_KEY) return undefined;
     const t = setTimeout(async () => {
       setLoading(true);
       try {
@@ -156,11 +155,11 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
         if (!r.ok) throw new Error(String(r.status));
         const j = await r.json();
         setResults(j.data.map((g: any) => ({ id: g.id, title: g.title, preview: g.images.fixed_width_small?.url ?? g.images.fixed_width.url, full: g.images.downsized?.url ?? g.images.original.url })));
-      } catch { toast.error("GIF search failed. Check the GIPHY API key in .env."); setResults([]); }
+      } catch { toast.error("GIF search failed."); setResults([]); }
       finally { setLoading(false); }
     }, 350);
     return () => clearTimeout(t);
-  }, [q, enabled]);
+  }, [q]);
 
   const sendRemote = async (g: GifResult) => {
     try {
@@ -173,16 +172,8 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
     <div className="flex h-full flex-col gap-2 p-2">
       <button className="pixel-btn pixel-btn-sm" onClick={() => fileRef.current?.click()}><Upload size={12} /> Send a GIF from your device</button>
       <input ref={fileRef} type="file" accept="image/gif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onGif(f, f.name); e.target.value = ""; }} />
-      {!enabled ? (
-        <div className="pixel-scroll flex flex-col gap-2 overflow-y-auto text-xs text-muted-foreground">
-          <p className="flex gap-2"><ShieldAlert size={14} className="shrink-0 text-secondary" /> Online GIF search is optional and uses GIPHY. GIPHY will see your search terms and IP address — this is <b>not</b> covered by Pixolark's end-to-end encryption. The chosen GIF is then downloaded and sent to your friend encrypted.</p>
-          {GIPHY_API_KEY ? (
-            <p className="text-secondary">This app's GIPHY API key is configured via .env (VITE_GIPHY_API_KEY).</p>
-          ) : (
-            <p className="text-destructive">No GIPHY API key found. Add <code>VITE_GIPHY_API_KEY=…</code> to the .env file, then restart the app.</p>
-          )}
-          <button className="pixel-btn pixel-btn-sm pixel-btn-gold" disabled={!GIPHY_API_KEY} onClick={() => setPrefs((p) => ({ ...p, giphyEnabled: true }))}>I understand · enable GIF search</button>
-        </div>
+      {!GIPHY_API_KEY ? (
+        <p className="m-auto text-center text-xs text-muted-foreground">GIF search is currently unavailable.</p>
       ) : (
         <>
           <label className="relative">

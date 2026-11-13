@@ -69,8 +69,8 @@ export function HostWait({ session, onBack }: { session: PeerSession; onBack: ()
   }, [session.localCode, session.roomId, session.state, submit]);
 
   const inviteLink =
-    typeof window !== "undefined" && session.localCode
-      ? `${window.location.origin}/chat?mode=join&room=${session.roomId}&code=${encodeURIComponent(session.localCode)}`
+    typeof window !== "undefined"
+      ? `${window.location.origin}/chat?mode=join&room=${session.roomId}`
       : "";
 
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
