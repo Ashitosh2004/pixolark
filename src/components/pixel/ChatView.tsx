@@ -140,6 +140,8 @@ export function ChatView(p: Props) {
 
   const statusText =
     p.sessState === "secure" ? (api.online ? (api.peerTyping ? "typing…" : api.peer?.status || "online") : "offline")
+    : p.sessState === "waiting" ? "waiting for friend…"
+    : p.sessState === "preparing" ? "connecting…"
     : p.sessState === "reconnecting" ? "reconnecting…"
     : p.sessState === "closed" ? "disconnected" : p.sessState === "failed" ? "connection stopped" : p.sessState;
 

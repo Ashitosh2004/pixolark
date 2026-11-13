@@ -1,6 +1,7 @@
 /** Local-only storage. Only preferences by default; chat history only when the user opts in.
  *  Encryption keys are NEVER written to storage. */
 import { randomAvatar, type Avatar } from "./pixelart";
+import { isValidRoomId, normalizeRoomId } from "./codec";
 
 export interface Prefs {
   username: string;
@@ -78,6 +79,27 @@ export function purgeOldHistory() {
 }
 
 export function clearHistory(room: string) { localStorage.removeItem(HIST + room); }
+
+const LASTROOM = "pxc.lastRoom.v1";
+
+export interface LastRoom { roomId: string; role: "host" | "guest"; at: number }
+
+/** Remembers the last room this device was in, so a reload or return can offer a one-click rejoin. */
+export function saveLastRoom(room: string, role: "host" | "guest") {
+  try { localStorage.setItem(LASTROOM, JSON.stringify({ roomId: normalizeRoomId(room), role, at: Date.now() } satisfies LastRoom)); } catch { /* quota */ }
+}
+
+export function loadLastRoom(): LastRoom | null {
+  try {
+    const raw = localStorage.getItem(LASTROOM);
+    if (!raw) return null;
+    const l = JSON.parse(raw) as Partial<LastRoom>;
+    if ((l.role !== "host" && l.role !== "guest") || !l.roomId || !isValidRoomId(l.roomId)) return null;
+    return { roomId: l.roomId, role: l.role, at: l.at ?? 0 };
+  } catch { return null; }
+}
+
+export function clearLastRoom() { try { localStorage.removeItem(LASTROOM); } catch { /* ignore */ } }
 
 export function clearAllLocalData() {
   for (const k of Object.keys(localStorage)) if (k.startsWith("pxc.") || k.startsWith("epr_")) localStorage.removeItem(k);

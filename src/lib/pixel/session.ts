@@ -55,6 +55,10 @@ export class PeerSession {
   readonly roomId: string;
   readonly role: "host" | "guest";
   sid = "";
+  /** Guest only: automatic re-join attempts, driven by the app-level retry loop. */
+  retries = 0;
+  /** Guest only: the offer code this session joined with — lets the app detect a stale offer on retry. */
+  remoteOfferCode: string | null = null;
   codeExpiresAt = 0;
   peerOnline = false;
   remoteStream = new MediaStream();
@@ -131,6 +135,7 @@ export class PeerSession {
     const s = new PeerSession(roomId, "guest");
     s.identity = await createIdentity();
     s.sid = p.sid;
+    s.remoteOfferCode = offerCode;
     s.peerCommit = p.commit;
     s.pc.addEventListener("datachannel", (e) => s.attachChannel(e.channel));
     await s.pc.setRemoteDescription({ type: "offer", sdp: p.sdp });
@@ -153,7 +158,7 @@ export class PeerSession {
     if (p.room !== this.roomId && normalizeRoomId(p.room) !== normalizeRoomId(this.roomId)) {
       throw new CodeError("This answer belongs to a different room.");
     }
-    if (p.sid !== this.sid) throw new CodeError("This answer was made for an older invite. Ask your friend to scan the current one.");
+    if (p.sid !== this.sid) throw new CodeError("This answer was made for an older invite — your friend will reconnect with the latest one automatically.");
     if (this.answered) throw new CodeError("A peer is already connected to this invite. Duplicate connection blocked.");
     this.answered = true;
     this.peerCommit = p.commit;

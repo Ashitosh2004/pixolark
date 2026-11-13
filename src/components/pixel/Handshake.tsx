@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ScanLine, ShieldCheck, Info, ArrowLeft, Share2, ClipboardPaste, Sparkles, History } from "lucide-react";
 import { toast } from "sonner";
 import { decodeConnection, isValidRoomId, normalizeRoomId } from "@/lib/pixel/codec";
 import type { PeerSession } from "@/lib/pixel/session";
-import { publishSignal, fetchSignal, subscribeSignal } from "@/lib/pixel/signaling";
+import { fetchSignal } from "@/lib/pixel/signaling";
 import { CopyButton, Loader, QrCode, QrScanner } from "./ui";
 
 function Countdown({ until, label = "Code valid for" }: { until: number; label?: string }) {
@@ -46,27 +46,6 @@ export function HostWait({ session, onBack }: { session: PeerSession; onBack: ()
   const [, force] = useState(0);
 
   useEffect(() => session.on("state", () => force((x) => x + 1)), [session]);
-
-  const submit = useCallback(
-    async (code: string) => {
-      try {
-        await session.acceptAnswer(code);
-      } catch (e: any) {
-        toast.error(e.message);
-      }
-    },
-    [session],
-  );
-
-  // Auto-signaling: publish offer and listen for guest answer automatically via 6-digit room code
-  useEffect(() => {
-    if (!session.localCode || session.state !== "waiting") return;
-    void publishSignal(session.roomId, "offer", session.localCode);
-    const unsub = subscribeSignal(session.roomId, "answer", (ans) => {
-      if (session.state === "waiting") void submit(ans);
-    });
-    return unsub;
-  }, [session.localCode, session.roomId, session.state, submit]);
 
   const inviteLink =
     typeof window !== "undefined"
@@ -202,35 +181,27 @@ export function GuestJoin({
     }
   }, [initialCode, code]);
 
-  // Auto-signaling: once guest creates answer, broadcast it so host automatically receives it
-  useEffect(() => {
-    if (!session?.localCode || session.state !== "waiting") return;
-    void publishSignal(session.roomId, "answer", session.localCode);
-  }, [session?.localCode, session?.roomId, session?.state]);
-
   const go = async (r: string, c: string) => {
     setErr(null);
     let targetCode = c.trim();
     let targetRoom = normalizeRoomId(r);
 
-    // If only 6-digit code was given, auto-fetch host's offer
+    // Fetch the host's latest offer automatically — the newest one on the topic is
+    // always the right one, even if the host re-hosted the room after a reload.
     if (!targetCode && isValidRoomId(targetRoom)) {
       setBusy(true);
-      try {
-        const fetchedOffer = await fetchSignal(targetRoom, "offer");
-        if (fetchedOffer) {
-          targetCode = fetchedOffer;
-          setCode(fetchedOffer);
-        } else {
-          setErr("No active host found for this 6-digit code yet. Ensure host is waiting, or paste their invite code/QR.");
-          setBusy(false);
-          return;
-        }
-      } catch {
-        setErr("Could not reach pairing service. Please paste the invite code or scan host's QR.");
+      const { code, closed } = await fetchSignal(targetRoom, "offer");
+      if (closed) {
+        setErr("This room was closed by its creator. Ask them to reopen it, then try again.");
         setBusy(false);
         return;
       }
+      if (!code) {
+        setErr(`No host is waiting in room ${targetRoom} right now. If you created this room, use "I created this room — rejoin it" below.`);
+        setBusy(false);
+        return;
+      }
+      targetCode = code;
     }
 
     // If only code was pasted, extract room from payload automatically
