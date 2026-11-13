@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ScanLine, ShieldCheck, Info, ArrowLeft, Share2, ClipboardPaste, Sparkles } from "lucide-react";
+import { ScanLine, ShieldCheck, Info, ArrowLeft, Share2, ClipboardPaste, Sparkles, History } from "lucide-react";
 import { toast } from "sonner";
 import { decodeConnection, isValidRoomId, normalizeRoomId } from "@/lib/pixel/codec";
 import type { PeerSession } from "@/lib/pixel/session";
@@ -130,6 +130,7 @@ export function HostWait({ session, onBack }: { session: PeerSession; onBack: ()
             </p>
             <p className="text-xs text-muted-foreground">
               The moment your friend scans your QR, opens your link or pastes the code, the room connects automatically — nothing else to copy or paste.
+              If you leave or reload later, open Join and pick <b>"I created this room — rejoin it"</b> with this same code.
             </p>
           </div>
         )}
@@ -163,12 +164,15 @@ export function HostWait({ session, onBack }: { session: PeerSession; onBack: ()
 
 export function GuestJoin({
   onJoin,
+  onRejoin,
   session,
   onBack,
   initialRoom,
   initialCode,
 }: {
   onJoin: (room: string, code: string) => Promise<void>;
+  /** Room creator: re-host an existing room by its 6-digit code. */
+  onRejoin?: ((room: string) => Promise<void>) | undefined;
   session: PeerSession | null;
   onBack: () => void;
   initialRoom?: string | undefined;
@@ -178,6 +182,7 @@ export function GuestJoin({
   const [code, setCode] = useState(initialCode ?? "");
   const [scan, setScan] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [rejoining, setRejoining] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [, force] = useState(0);
 
@@ -284,6 +289,23 @@ export function GuestJoin({
     }
   };
 
+  // Room creator: re-host the room under the same 6-digit code (e.g. after a reload
+  // or disconnect) — the fresh offer is re-published so the friend can reconnect.
+  const rejoin = async () => {
+    const r = normalizeRoomId(room);
+    if (!isValidRoomId(r)) {
+      setErr("Enter the 6-digit code of the room you created.");
+      return;
+    }
+    setErr(null);
+    setRejoining(true);
+    try {
+      await onRejoin?.(r);
+    } finally {
+      setRejoining(false);
+    }
+  };
+
   // If session is already created and waiting for host
   if (session && session.state !== "failed" && session.state !== "closed") {
     const st = session.state;
@@ -348,6 +370,12 @@ export function GuestJoin({
             <ScanLine size={14} /> Scan QR
           </button>
         </div>
+
+        {onRejoin && (
+          <button className="pixel-btn pixel-btn-sm self-start" disabled={busy || rejoining} onClick={() => void rejoin()}>
+            <History size={12} /> {rejoining ? "Rejoining…" : "I created this room — rejoin it"}
+          </button>
+        )}
 
         <div className="border-t border-border/40 pt-2">
           <span className="pixel-label">Or Paste Invite Code / 1-Click Link</span>

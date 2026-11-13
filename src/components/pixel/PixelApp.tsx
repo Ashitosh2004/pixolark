@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Settings as Cog } from "lucide-react";
-import { generateRoomId } from "@/lib/pixel/codec";
+import { generateRoomId, normalizeRoomId } from "@/lib/pixel/codec";
 import { PeerSession, type SessionState } from "@/lib/pixel/session";
 import { play, setSoundEnabled } from "@/lib/pixel/sound";
 import { clearAllLocalData, clearHistory, loadHistory, loadPrefs, purgeOldHistory, saveHistory, savePrefs, defaultPrefs, type Prefs } from "@/lib/pixel/storage";
@@ -109,6 +109,29 @@ export default function PixelApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, roomId, prefs.saveHistory]);
 
+  // Room creator: re-host an existing room under its 6-digit code (after leaving/reload).
+  // HostWait re-publishes the offer, so the friend's Reconnect picks the fresh one up.
+  const rejoinRoom = useCallback(async (room: string) => {
+    setBusy(true);
+    try {
+      session?.close(false);
+      const r = normalizeRoomId(room);
+      setRoomId(r);
+      api.setMessages([]);
+      loadRoomHistory(r);
+      setVerified(false);
+      const s = await PeerSession.host(r);
+      setSession(s);
+      setStage("host");
+      toast(`Room ${r} is live again — waiting for your friend.`);
+    } catch (e: any) {
+      toast.error(typeof RTCPeerConnection === "undefined" ? "Your browser doesn't support WebRTC." : `Couldn't rejoin room: ${e?.message ?? e}`);
+    } finally {
+      setBusy(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   useEffect(() => {
     if (autoRan.current) return;
     autoRan.current = true;
@@ -130,7 +153,7 @@ export default function PixelApp({
 
   const reconnect = useCallback(() => {
     setSettings({ open: false });
-    if (session?.role === "guest") { session.close(false); setSession(null); setStage("join"); toast("Ask the room creator for a fresh invite code."); }
+    if (session?.role === "guest") { session.close(false); setSession(null); setStage("join"); toast("Connection lost. Enter the 6-digit room code to reconnect."); }
     else void createRoom(roomId || undefined);
   }, [session, roomId, createRoom]);
 
@@ -207,6 +230,7 @@ export default function PixelApp({
         <GuestJoin
           session={session?.role === "guest" ? session : null}
           onJoin={joinRoom}
+          onRejoin={rejoinRoom}
           onBack={leave}
           initialRoom={initialRoom || roomId}
           initialCode={initialCode}
