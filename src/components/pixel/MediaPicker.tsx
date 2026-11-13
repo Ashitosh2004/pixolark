@@ -143,10 +143,8 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [keyDraft, setKeyDraft] = useState(prefs.giphyKey);
   const fileRef = useRef<HTMLInputElement>(null);
-  const apiKey = prefs.giphyKey || GIPHY_API_KEY;
-  const enabled = prefs.giphyEnabled && apiKey;
+  const enabled = prefs.giphyEnabled && GIPHY_API_KEY;
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -154,15 +152,15 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
       setLoading(true);
       try {
         const base = q.trim() ? `https://api.giphy.com/v1/gifs/search?q=${encodeURIComponent(q)}&` : "https://api.giphy.com/v1/gifs/trending?";
-        const r = await fetch(`${base}api_key=${encodeURIComponent(apiKey)}&limit=24&rating=pg-13`);
+        const r = await fetch(`${base}api_key=${encodeURIComponent(GIPHY_API_KEY)}&limit=24&rating=pg-13`);
         if (!r.ok) throw new Error(String(r.status));
         const j = await r.json();
         setResults(j.data.map((g: any) => ({ id: g.id, title: g.title, preview: g.images.fixed_width_small?.url ?? g.images.fixed_width.url, full: g.images.downsized?.url ?? g.images.original.url })));
-      } catch { toast.error("GIF search failed. Check your GIPHY API key."); setResults([]); }
+      } catch { toast.error("GIF search failed. Check the GIPHY API key in .env."); setResults([]); }
       finally { setLoading(false); }
     }, 350);
     return () => clearTimeout(t);
-  }, [q, enabled, apiKey]);
+  }, [q, enabled]);
 
   const sendRemote = async (g: GifResult) => {
     try {
@@ -179,12 +177,11 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
         <div className="pixel-scroll flex flex-col gap-2 overflow-y-auto text-xs text-muted-foreground">
           <p className="flex gap-2"><ShieldAlert size={14} className="shrink-0 text-secondary" /> Online GIF search is optional and uses GIPHY. GIPHY will see your search terms and IP address — this is <b>not</b> covered by Pixolark's end-to-end encryption. The chosen GIF is then downloaded and sent to your friend encrypted.</p>
           {GIPHY_API_KEY ? (
-            <p className="text-secondary">A GIPHY API key is already built into this app (env: VITE_GIPHY_API_KEY).</p>
+            <p className="text-secondary">This app's GIPHY API key is configured via .env (VITE_GIPHY_API_KEY).</p>
           ) : (
-            <input className="pixel-input text-xs" placeholder="Your free GIPHY API key" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} />
+            <p className="text-destructive">No GIPHY API key found. Add <code>VITE_GIPHY_API_KEY=…</code> to the .env file, then restart the app.</p>
           )}
-          <button className="pixel-btn pixel-btn-sm pixel-btn-gold" disabled={!GIPHY_API_KEY && !keyDraft.trim()} onClick={() => setPrefs((p) => ({ ...p, giphyEnabled: true, giphyKey: keyDraft.trim() }))}>I understand · enable GIF search</button>
-          {!GIPHY_API_KEY && <a className="underline" href="https://developers.giphy.com/dashboard/" target="_blank" rel="noreferrer">Get a free key at developers.giphy.com</a>}
+          <button className="pixel-btn pixel-btn-sm pixel-btn-gold" disabled={!GIPHY_API_KEY} onClick={() => setPrefs((p) => ({ ...p, giphyEnabled: true }))}>I understand · enable GIF search</button>
         </div>
       ) : (
         <>

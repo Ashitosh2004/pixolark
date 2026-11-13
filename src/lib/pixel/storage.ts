@@ -12,7 +12,6 @@ export interface Prefs {
   saveHistory: boolean;
   autoDelete24h: boolean;
   giphyEnabled: boolean;
-  giphyKey: string;
   sessionHours: number;
   favStickers: string[];
   customStickers: { id: string; url: string }[];
@@ -34,7 +33,7 @@ export function defaultPrefs(): Prefs {
   const n = crypto.getRandomValues(new Uint16Array(1))[0]! % 1000;
   return {
     username: `Player${n}`, avatar: randomAvatar(), status: "Ready to chat", theme: "dark", sounds: true,
-    notifications: false, saveHistory: false, autoDelete24h: true, giphyEnabled: false, giphyKey: "",
+    notifications: false, saveHistory: false, autoDelete24h: true, giphyEnabled: false,
     sessionHours: 4, favStickers: [], customStickers: [], readReceipts: true, typingIndicator: true,
     recentStickers: [], stickerUsage: {}, installedPacks: ["pixel-love", "funny-reactions", "gaming-legends"], favPacks: [],
     stickerSearches: [], userPacks: [], reduceMotion: false,
