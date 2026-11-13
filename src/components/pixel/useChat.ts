@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { randomId } from "@/lib/pixel/bytes";
 import type { PeerSession } from "@/lib/pixel/session";
 import { play } from "@/lib/pixel/sound";
+import { deliver } from "@/lib/pixel/notifications";
 import type { Prefs } from "@/lib/pixel/storage";
 import { isLibStickerId, resolveIncomingSticker, STICKER_LIB_VERSION, stickerDataUrl } from "@/lib/pixel/stickerlib";
 import { CHUNK, MAX_FILE_BYTES, previewOf, type CallState, type ChatMessage, type MsgKind, type PeerProfile, type ReplyRef } from "./types";
@@ -36,6 +37,7 @@ export function useChat(session: PeerSession | null, prefs: Prefs, opts: { muted
   const optsRef = useRef(opts); optsRef.current = opts;
   const prefsRef = useRef(prefs); prefsRef.current = prefs;
   const peerRef = useRef(peer); peerRef.current = peer;
+  const sessionRef = useRef(session); sessionRef.current = session;
 
   const patch = useCallback((id: string, fn: (m: ChatMessage) => ChatMessage) => {
     setMessages((ms) => ms.map((m) => (m.id === id ? fn(m) : m)));
@@ -44,12 +46,12 @@ export function useChat(session: PeerSession | null, prefs: Prefs, opts: { muted
     setMessages((ms) => [...ms, { id: randomId(), from: "system", kind: "system", text, ts: Date.now(), reactions: {} }]);
   }, []);
 
-  const notify = useCallback((title: string, body: string) => {
-    if (optsRef.current.muted) return;
-    play("receive");
-    if (prefsRef.current.notifications && document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
-      try { new Notification(title, { body, icon: "/favicon.ico", tag: "pixelchat" }); } catch { /* */ }
-    }
+  const notify = useCallback((title: string, body: string, text?: string) => {
+    const room = sessionRef.current?.roomId ?? "peer";
+    deliver(
+      { room, roomName: title, senderName: title, body, text },
+      { muted: optsRef.current.muted, sounds: prefsRef.current.sounds, notifications: prefsRef.current.notifications, myName: prefsRef.current.username },
+    );
   }, []);
 
   const sendProfile = useCallback(() => {

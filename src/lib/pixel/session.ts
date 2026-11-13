@@ -55,6 +55,8 @@ export class PeerSession {
   readonly roomId: string;
   readonly role: "host" | "guest";
   sid = "";
+  /** Verified peer identity public key (available after the secure handshake). */
+  peerPublicRaw: Uint8Array<ArrayBuffer> | null = null;
   /** Guest only: automatic re-join attempts, driven by the app-level retry loop. */
   retries = 0;
   /** Guest only: the offer code this session joined with — lets the app detect a stale offer on retry. */
@@ -106,10 +108,10 @@ export class PeerSession {
     this.emit("state", s);
   }
 
-  /** Host: create offer + connection code. */
-  static async host(roomId: string): Promise<PeerSession> {
+  /** Host: create offer + connection code. Pass an identity to reuse one (e.g. stable group membership). */
+  static async host(roomId: string, identity?: Identity): Promise<PeerSession> {
     const s = new PeerSession(roomId, "host");
-    s.identity = await createIdentity();
+    s.identity = identity ?? (await createIdentity());
     s.sid = b64url(crypto.getRandomValues(new Uint8Array(9)));
     s.attachChannel(s.pc.createDataChannel("pixelchat", { ordered: true }));
     await s.pc.setLocalDescription(await s.pc.createOffer());
@@ -125,15 +127,15 @@ export class PeerSession {
     return s;
   }
 
-  /** Guest: consume an offer code, produce an answer code. */
-  static async join(roomId: string, offerCode: string): Promise<PeerSession> {
+  /** Guest: consume an offer code, produce an answer code. Pass an identity to reuse one (e.g. stable group membership). */
+  static async join(roomId: string, offerCode: string, identity?: Identity): Promise<PeerSession> {
     const p = await decodeConnection(offerCode);
     if (p.kind !== "offer") throw new CodeError("That is an answer code, not an invite code. Use the invite code or QR from the room creator.");
     if (p.room !== roomId && normalizeRoomId(p.room) !== normalizeRoomId(roomId)) {
       throw new CodeError(`This code belongs to room ${p.room}, not ${roomId}. Check the Room code.`);
     }
     const s = new PeerSession(roomId, "guest");
-    s.identity = await createIdentity();
+    s.identity = identity ?? (await createIdentity());
     s.sid = p.sid;
     s.remoteOfferCode = offerCode;
     s.peerCommit = p.commit;
@@ -215,6 +217,7 @@ export class PeerSession {
       if (!this.peerCommit || commit !== this.peerCommit) {
         return this.fail("KEY MISMATCH: the peer's encryption key does not match the connection code. Someone may be tampering with the connection. Communication stopped.");
       }
+      this.peerPublicRaw = peerPub;
       const localSdp = this.pc.localDescription?.sdp ?? "";
       const ctx = this.roomId + "|" + [dtlsFingerprints(localSdp), dtlsFingerprints(this.remoteSdp)].sort().join("|");
       this.keys = await deriveSessionKeys(this.identity, peerPub, this.role, ctx);

@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Shuffle, Upload, Download, Trash2, RefreshCw, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Shuffle, Upload, Download, Trash2, RefreshCw, ShieldCheck, ShieldAlert, Clock, ArchiveRestore, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { AVATAR_BGS, AVATAR_COLORS, randomAvatar, type PixelAvatar } from "@/lib/pixel/pixelart";
 import type { PeerSession } from "@/lib/pixel/session";
+import type { GroupSession } from "@/lib/pixel/group";
+import { DND_PRESETS, dndUntil, setDndUntil } from "@/lib/pixel/notifications";
+import { exportBackup, importBackup } from "@/lib/pixel/storage";
 import type { Prefs } from "@/lib/pixel/storage";
 import { cn } from "@/lib/utils";
 import { resizeImage } from "./MediaPicker";
@@ -17,6 +20,7 @@ export interface SettingsProps {
   prefs: Prefs;
   setPrefs: (fn: (p: Prefs) => Prefs) => void;
   session: PeerSession | null;
+  group?: GroupSession | null | undefined;
   muted: boolean; setMuted: (v: boolean) => void;
   blocked: boolean; setBlocked: (v: boolean) => void;
   verified: boolean; setVerified: (v: boolean) => void;
@@ -25,6 +29,7 @@ export interface SettingsProps {
   onClearAll: () => void;
   onReconnect: () => void;
   onLeave: () => void;
+  onBackupImported: () => void;
 }
 
 function Toggle({ label, desc, checked, onChange, scope }: { label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void; scope?: "local" | "both" }) {
@@ -94,14 +99,55 @@ export function AvatarEditor({ prefs, setPrefs }: { prefs: Prefs; setPrefs: Sett
 export function SettingsPanel(p: SettingsProps) {
   const [tab, setTab] = useState<Tab>(p.initialTab ?? "profile");
   const [diag, setDiag] = useState<Record<string, string>>({});
+  const [dndTs, setDndTs] = useState(() => dndUntil());
+  const [backupPass, setBackupPass] = useState("");
+  const [backupPass2, setBackupPass2] = useState("");
+  const [backupBusy, setBackupBusy] = useState(false);
   useEffect(() => { if (p.open && p.initialTab) setTab(p.initialTab); }, [p.open, p.initialTab]);
   useEffect(() => {
-    if (!p.open || tab !== "diag" || !p.session) return;
-    const run = () => p.session!.diagnostics().then(setDiag);
-    run();
-    const t = setInterval(run, 2000);
-    return () => clearInterval(t);
-  }, [p.open, tab, p.session]);
+    if (!p.open || tab !== "diag" || (!p.session && !p.group)) return;
+    let alive = true;
+    const run = async () => {
+      const out: Record<string, string> = {};
+      if (p.group) Object.assign(out, p.group.diagnostics());
+      if (p.session) { try { Object.assign(out, await p.session.diagnostics()); } catch { /* ignore */ } }
+      if (alive) setDiag(out);
+    };
+    void run();
+    const t = setInterval(() => void run(), 2000);
+    return () => { alive = false; clearInterval(t); };
+  }, [p.open, tab, p.session, p.group]);
+
+  const doExportBackup = async () => {
+    if (!backupPass) { toast.error("Choose a passphrase for the backup file."); return; }
+    if (backupPass !== backupPass2) { toast.error("The two passphrases don't match."); return; }
+    setBackupBusy(true);
+    try {
+      const json = await exportBackup(backupPass);
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `pixolark-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success("Backup downloaded. Keep the passphrase safe — the file is unreadable without it.");
+      setBackupPass(""); setBackupPass2("");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Backup failed.");
+    } finally { setBackupBusy(false); }
+  };
+
+  const doImportBackup = async (f: File) => {
+    if (!backupPass) { toast.error("Enter the backup's passphrase first."); return; }
+    setBackupBusy(true);
+    try {
+      const text = await f.text();
+      const n = await importBackup(text, backupPass);
+      toast.success(`Restored ${n} entr${n === 1 ? "y" : "ies"} from the backup.`);
+      p.onBackupImported();
+      setBackupPass(""); setBackupPass2("");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Restore failed.");
+    } finally { setBackupBusy(false); }
+  };
 
   const up = <K extends keyof Prefs>(k: K, v: Prefs[K]) => p.setPrefs((x) => ({ ...x, [k]: v }));
   const TABS: [Tab, string][] = [["profile", "Profile"], ["privacy", "Privacy"], ["app", "Theme & sound"], ["security", "Security"], ["data", "Data"], ["diag", "Diagnostics"], ["keys", "Shortcuts"]];
@@ -134,6 +180,24 @@ export function SettingsPanel(p: SettingsProps) {
               <Toggle scope="local" label="Auto-delete saved history after 24 hours" checked={p.prefs.autoDelete24h} onChange={(v) => up("autoDelete24h", v)} />
               <Toggle scope="local" label="Mute this conversation" desc="No sounds or notifications." checked={p.muted} onChange={p.setMuted} />
               <Toggle scope="local" label="Block incoming messages" desc="Drops messages, files and calls from this session. The other person isn't told." checked={p.blocked} onChange={p.setBlocked} />
+              <div className="border-2 border-border bg-surface p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Clock size={14} className="text-secondary" />
+                  {dndTs > Date.now() ? (
+                    <>
+                      <span className="text-sm">Do not disturb — <span className="font-semibold">{Math.ceil((dndTs - Date.now()) / 60000)} min</span> left (silences all sounds & notifications, including mentions).</span>
+                      <button className="pixel-btn pixel-btn-sm" onClick={() => { setDndUntil(0); setDndTs(0); }}>Turn off</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm">Do not disturb:</span>
+                      {DND_PRESETS.filter((d) => d.minutes > 0).map((d) => (
+                        <button key={d.minutes} className="pixel-btn pixel-btn-sm" onClick={() => { setDndUntil(Date.now() + d.minutes * 60000); setDndTs(Date.now() + d.minutes * 60000); }}>{d.label}</button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
               <label className="flex items-center justify-between gap-4 py-2"><span className="text-sm">Auto-disconnect session after</span>
                 <select className="pixel-input !w-32 text-sm" value={p.prefs.sessionHours} onChange={(e) => up("sessionHours", Number(e.target.value))}>
                   {[0.5, 1, 2, 4, 8, 24].map((h) => <option key={h} value={h}>{h < 1 ? "30 min" : `${h} h`}</option>)}
@@ -185,6 +249,25 @@ export function SettingsPanel(p: SettingsProps) {
               <button className="pixel-btn pixel-btn-sm pixel-btn-danger" onClick={p.onLeave}>Leave room & delete session keys</button>
               <button className="pixel-btn pixel-btn-sm pixel-btn-danger" onClick={p.onClearAll}>Clear ALL local data</button>
               <p className="text-xs text-muted-foreground">Clearing data here never deletes what your friend already received or saved.</p>
+
+              <div className="w-full border-2 border-dashed border-border p-3">
+                <span className="pixel-label"><FileDown size={12} className="inline" /> Encrypted backup (move to another device)</span>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Packs your preferences, opt-in history, drafts, bookmarks and hosted-room rosters into one file, encrypted with a passphrase (PBKDF2 + AES-GCM).
+                  Identity keys and group key counters are NEVER included — new devices generate their own.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input className="pixel-input w-44" type="password" placeholder="Passphrase" value={backupPass} onChange={(e) => setBackupPass(e.target.value)} autoComplete="new-password" />
+                  <input className="pixel-input w-44" type="password" placeholder="Repeat passphrase" value={backupPass2} onChange={(e) => setBackupPass2(e.target.value)} autoComplete="new-password" />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button className="pixel-btn pixel-btn-sm pixel-btn-primary" disabled={backupBusy} onClick={() => void doExportBackup()}><Download size={12} /> Export backup file</button>
+                  <label className="pixel-btn pixel-btn-sm cursor-pointer" >
+                    <ArchiveRestore size={12} /> Restore from backup
+                    <input type="file" accept="application/json" className="hidden" disabled={backupBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void doImportBackup(f); e.target.value = ""; }} />
+                  </label>
+                </div>
+              </div>
             </div>
           )}
           {tab === "diag" && (
@@ -192,8 +275,8 @@ export function SettingsPanel(p: SettingsProps) {
               <table className="w-full text-xs"><tbody>
                 {Object.entries(diag).map(([k, v]) => <tr key={k} className="border-b border-border/40"><td className="py-1 pr-3 text-muted-foreground">{k}</td><td className="py-1 font-mono">{v}</td></tr>)}
               </tbody></table>
-              {!p.session && <p className="text-sm text-muted-foreground">No active connection.</p>}
-              <button className="pixel-btn pixel-btn-sm" onClick={p.onReconnect}><RefreshCw size={12} /> Reconnect</button>
+              {!p.session && !p.group && <p className="text-sm text-muted-foreground">No active connection.</p>}
+              {p.session && <button className="pixel-btn pixel-btn-sm" onClick={p.onReconnect}><RefreshCw size={12} /> Reconnect</button>}
               <p className="text-xs text-muted-foreground">"relay" routes are not used (no TURN). If both networks block direct links, connection may fail.</p>
             </div>
           )}

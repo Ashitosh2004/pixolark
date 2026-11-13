@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { Reply, Copy, Pin, Trash2, Forward, Download, X, SmilePlus, Check, CheckCheck, Clock, AlertTriangle, FileText } from "lucide-react";
+import { Reply, Copy, Pin, Trash2, Forward, Download, X, SmilePlus, Check, CheckCheck, Clock, AlertTriangle, FileText, Pencil } from "lucide-react";
 import { formatBytes } from "@/lib/pixel/bytes";
 import { stickerSrc } from "@/lib/pixel/stickers";
 import { isLibStickerId } from "@/lib/pixel/stickerlib";
@@ -24,6 +24,9 @@ interface Props {
   onForward: (m: ChatMessage) => void;
   onCancel: (id: string) => void;
   onJump: (id: string) => void;
+  /** Groups only: edit/delete propagate to everyone via the room's encryption. */
+  onEdit?: (m: ChatMessage) => void;
+  onDeleteAll?: (id: string) => void;
 }
 
 function Hl({ text, q }: { text: string; q?: string | undefined }) {
@@ -100,18 +103,25 @@ export const MessageBubble = memo(function MessageBubble(p: Props) {
     <div id={`msg-${m.id}`} className={cn("group flex items-end gap-2 py-1", mine ? "flex-row-reverse" : "flex-row")} onClick={() => p.selectMode && p.onSelect(m.id)}>
       {p.selectMode && <input type="checkbox" checked={p.selected} readOnly className="h-4 w-4 accent-primary" aria-label="Select message" />}
       <div className={cn("flex max-w-[85%] flex-col sm:max-w-[70%]", mine ? "items-end" : "items-start")}>
+        {!mine && m.senderName && <div className="mb-0.5 pl-1 text-[10px] font-semibold text-muted-foreground">{m.senderName}</div>}
         <div className={cn(isSticker ? "" : "bubble px-3 py-2", !isSticker && (mine ? "bubble-me" : "bubble-peer"), m.pinned && "outline-2 outline-secondary outline-offset-4")}>
-          {m.forwarded && <div className="mb-1 flex items-center gap-1 text-[10px] opacity-70"><Forward size={10} /> Forwarded</div>}
-          {m.replyTo && (
-            <button className="mb-2 block w-full border-l-4 border-secondary bg-pixel-dark/20 px-2 py-1 text-left text-xs" onClick={(e) => { e.stopPropagation(); p.onJump(m.replyTo!.id); }}>
-              <div className="font-semibold">{m.replyTo.author}</div>
-              <div className="truncate opacity-80">{m.replyTo.preview}</div>
-            </button>
+          {m.deleted ? (
+            <p className="text-[13px] italic opacity-70">Message deleted</p>
+          ) : (
+            <>
+              {m.forwarded && <div className="mb-1 flex items-center gap-1 text-[10px] opacity-70"><Forward size={10} /> Forwarded</div>}
+              {m.replyTo && (
+                <button className="mb-2 block w-full border-l-4 border-secondary bg-pixel-dark/20 px-2 py-1 text-left text-xs" onClick={(e) => { e.stopPropagation(); p.onJump(m.replyTo!.id); }}>
+                  <div className="font-semibold">{m.replyTo.author}</div>
+                  <div className="truncate opacity-80">{m.replyTo.preview}</div>
+                </button>
+              )}
+              {m.kind === "text" && <p className="whitespace-pre-wrap break-words text-[15px] leading-snug"><Linkify text={m.text ?? ""} q={p.highlight} />{m.edited && <span className="ml-1 align-middle text-[10px] opacity-60">(edited)</span>}</p>}
+              {isSticker && isLibStickerId(m.sticker) && <StickerImg id={m.sticker} alt="Animated sticker" size={120} />}
+              {isSticker && !isLibStickerId(m.sticker) && <img src={m.stickerUrl ?? stickerSrc(m.sticker ?? "") ?? ""} alt="sticker" width={120} height={120} className="pixelated h-[120px] w-[120px] object-contain" />}
+              {m.file && <FileBody m={m} onCancel={p.onCancel} />}
+            </>
           )}
-          {m.kind === "text" && <p className="whitespace-pre-wrap break-words text-[15px] leading-snug"><Linkify text={m.text ?? ""} q={p.highlight} /></p>}
-          {isSticker && isLibStickerId(m.sticker) && <StickerImg id={m.sticker} alt="Animated sticker" size={120} />}
-          {isSticker && !isLibStickerId(m.sticker) && <img src={m.stickerUrl ?? stickerSrc(m.sticker ?? "") ?? ""} alt="sticker" width={120} height={120} className="pixelated h-[120px] w-[120px] object-contain" />}
-          {m.file && <FileBody m={m} onCancel={p.onCancel} />}
         </div>
         {Object.keys(m.reactions).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
@@ -139,8 +149,10 @@ export const MessageBubble = memo(function MessageBubble(p: Props) {
               {[
                 { i: Reply, l: "Reply", f: () => p.onReply(m) },
                 { i: Copy, l: "Copy", f: () => p.onCopy(m) },
+                ...(p.onEdit && mine && m.kind === "text" && !m.deleted ? [{ i: Pencil, l: "Edit", f: () => p.onEdit!(m) }] : []),
                 { i: Pin, l: m.pinned ? "Unpin (local)" : "Pin (local)", f: () => p.onPin(m.id) },
                 { i: Forward, l: "Forward / select", f: () => p.onForward(m) },
+                ...(p.onDeleteAll && mine && !m.deleted ? [{ i: Trash2, l: "Delete for everyone", f: () => p.onDeleteAll!(m.id) }] : []),
                 { i: Trash2, l: "Delete for me", f: () => p.onDelete(m.id) },
               ].map((a) => (
                 <button key={a.l} className="flex items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-surface" onClick={() => { a.f(); setMenu(false); }}>

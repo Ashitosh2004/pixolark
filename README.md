@@ -44,6 +44,11 @@ Browser A                                        Browser B
 - **Crypto, Session & Media:** Located in `src/lib/pixel/` (ECDH/AES-GCM crypto, frame codec, WebRTC session management, audio engine, animated sticker system).
 - **Interface & Components:** Located in `src/components/pixel/` (chat view, media composer, avatar builder, calls overlay, handshake modal).
 
+Beyond private 1:1 chat, the app includes encrypted group rooms (host-run, sender-key encryption, moderation & audit), a live public-room directory ("Discover", global + regional views) driven by host beacons, a notification center with do-not-disturb and per-room mutes, and an encrypted local backup. See:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how it all works, including honest limitations.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — build, run, self-host the pub/sub, and the manual multi-device test checklist.
+
 ## How Signaling Works
 
 WebRTC peers require session descriptions (signaling) to establish direct connections. Pixolark performs this manually without intermediary signaling servers:

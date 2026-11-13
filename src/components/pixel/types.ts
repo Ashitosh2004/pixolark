@@ -17,6 +17,10 @@ export interface ChatMessage {
   reactions: Record<string, ("me" | "peer")[]>;
   pinned?: boolean | undefined;
   forwarded?: boolean | undefined;
+  senderName?: string | undefined; // groups: display name of the sender
+  senderId?: string | undefined; // groups: member id of the sender (moderation/jump)
+  edited?: boolean | undefined;
+  deleted?: boolean | undefined;
 }
 export interface PeerProfile { name: string; avatar: Avatar; status: string; stickerLib?: string | undefined }
 export type CallPhase = "idle" | "outgoing" | "incoming" | "active";
