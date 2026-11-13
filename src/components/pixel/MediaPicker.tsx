@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { STICKERS, STICKER_CATEGORIES, stickerSrc } from "@/lib/pixel/stickers";
 import { randomId } from "@/lib/pixel/bytes";
 import type { Prefs } from "@/lib/pixel/storage";
+import { GIPHY_API_KEY } from "@/lib/pixel/env";
 import { cn } from "@/lib/utils";
 import { Loader } from "./ui";
 import { StickerPicker } from "./StickerPicker";
@@ -144,7 +145,8 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
   const [loading, setLoading] = useState(false);
   const [keyDraft, setKeyDraft] = useState(prefs.giphyKey);
   const fileRef = useRef<HTMLInputElement>(null);
-  const enabled = prefs.giphyEnabled && prefs.giphyKey;
+  const apiKey = prefs.giphyKey || GIPHY_API_KEY;
+  const enabled = prefs.giphyEnabled && apiKey;
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -152,7 +154,7 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
       setLoading(true);
       try {
         const base = q.trim() ? `https://api.giphy.com/v1/gifs/search?q=${encodeURIComponent(q)}&` : "https://api.giphy.com/v1/gifs/trending?";
-        const r = await fetch(`${base}api_key=${encodeURIComponent(prefs.giphyKey)}&limit=24&rating=pg-13`);
+        const r = await fetch(`${base}api_key=${encodeURIComponent(apiKey)}&limit=24&rating=pg-13`);
         if (!r.ok) throw new Error(String(r.status));
         const j = await r.json();
         setResults(j.data.map((g: any) => ({ id: g.id, title: g.title, preview: g.images.fixed_width_small?.url ?? g.images.fixed_width.url, full: g.images.downsized?.url ?? g.images.original.url })));
@@ -160,7 +162,7 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
       finally { setLoading(false); }
     }, 350);
     return () => clearTimeout(t);
-  }, [q, enabled, prefs.giphyKey]);
+  }, [q, enabled, apiKey]);
 
   const sendRemote = async (g: GifResult) => {
     try {
@@ -176,9 +178,13 @@ function GifTab({ prefs, setPrefs, onGif }: Props) {
       {!enabled ? (
         <div className="pixel-scroll flex flex-col gap-2 overflow-y-auto text-xs text-muted-foreground">
           <p className="flex gap-2"><ShieldAlert size={14} className="shrink-0 text-secondary" /> Online GIF search is optional and uses GIPHY. GIPHY will see your search terms and IP address — this is <b>not</b> covered by Pixolark's end-to-end encryption. The chosen GIF is then downloaded and sent to your friend encrypted.</p>
-          <input className="pixel-input text-xs" placeholder="Your free GIPHY API key" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} />
-          <button className="pixel-btn pixel-btn-sm pixel-btn-gold" disabled={!keyDraft.trim()} onClick={() => setPrefs((p) => ({ ...p, giphyEnabled: true, giphyKey: keyDraft.trim() }))}>I understand · enable GIF search</button>
-          <a className="underline" href="https://developers.giphy.com/dashboard/" target="_blank" rel="noreferrer">Get a free key at developers.giphy.com</a>
+          {GIPHY_API_KEY ? (
+            <p className="text-secondary">A GIPHY API key is already built into this app (env: VITE_GIPHY_API_KEY).</p>
+          ) : (
+            <input className="pixel-input text-xs" placeholder="Your free GIPHY API key" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} />
+          )}
+          <button className="pixel-btn pixel-btn-sm pixel-btn-gold" disabled={!GIPHY_API_KEY && !keyDraft.trim()} onClick={() => setPrefs((p) => ({ ...p, giphyEnabled: true, giphyKey: keyDraft.trim() }))}>I understand · enable GIF search</button>
+          {!GIPHY_API_KEY && <a className="underline" href="https://developers.giphy.com/dashboard/" target="_blank" rel="noreferrer">Get a free key at developers.giphy.com</a>}
         </div>
       ) : (
         <>

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { AVATAR_BGS, AVATAR_COLORS, randomAvatar, type PixelAvatar } from "@/lib/pixel/pixelart";
 import type { PeerSession } from "@/lib/pixel/session";
 import type { Prefs } from "@/lib/pixel/storage";
+import { GIPHY_API_KEY } from "@/lib/pixel/env";
 import { cn } from "@/lib/utils";
 import { resizeImage } from "./MediaPicker";
 import { AvatarImg, Modal } from "./ui";
@@ -135,7 +136,9 @@ export function SettingsPanel(p: SettingsProps) {
               <Toggle scope="local" label="Mute this conversation" desc="No sounds or notifications." checked={p.muted} onChange={p.setMuted} />
               <Toggle scope="local" label="Block incoming messages" desc="Drops messages, files and calls from this session. The other person isn't told." checked={p.blocked} onChange={p.setBlocked} />
               <Toggle scope="local" label="GIF search (GIPHY)" desc="Sends search terms and your IP to GIPHY. Not end-to-end encrypted." checked={p.prefs.giphyEnabled} onChange={(v) => up("giphyEnabled", v)} />
-              {p.prefs.giphyEnabled && <input className="pixel-input text-xs" placeholder="GIPHY API key" value={p.prefs.giphyKey} onChange={(e) => up("giphyKey", e.target.value)} />}
+              {p.prefs.giphyEnabled && (GIPHY_API_KEY
+                ? <p className="text-xs text-muted-foreground">Using the GIPHY API key built into this app (VITE_GIPHY_API_KEY).</p>
+                : <input className="pixel-input text-xs" placeholder="GIPHY API key" value={p.prefs.giphyKey} onChange={(e) => up("giphyKey", e.target.value)} />)}
               <label className="flex items-center justify-between gap-4 py-2"><span className="text-sm">Auto-disconnect session after</span>
                 <select className="pixel-input !w-32 text-sm" value={p.prefs.sessionHours} onChange={(e) => up("sessionHours", Number(e.target.value))}>
                   {[0.5, 1, 2, 4, 8, 24].map((h) => <option key={h} value={h}>{h < 1 ? "30 min" : `${h} h`}</option>)}

@@ -124,7 +124,7 @@ export class PeerSession {
   /** Guest: consume an offer code, produce an answer code. */
   static async join(roomId: string, offerCode: string): Promise<PeerSession> {
     const p = await decodeConnection(offerCode);
-    if (p.kind !== "offer") throw new CodeError("That is an answer code. Paste the code from the room creator.");
+    if (p.kind !== "offer") throw new CodeError("That is an answer code, not an invite code. Use the invite code or QR from the room creator.");
     if (p.room !== roomId && normalizeRoomId(p.room) !== normalizeRoomId(roomId)) {
       throw new CodeError(`This code belongs to room ${p.room}, not ${roomId}. Check the Room code.`);
     }
@@ -149,7 +149,7 @@ export class PeerSession {
   /** Host: apply the guest's answer code. */
   async acceptAnswer(code: string) {
     const p: ConnectionPayload = await decodeConnection(code);
-    if (p.kind !== "answer") throw new CodeError("That is an invite code. Paste the ANSWER code your friend sends back.");
+    if (p.kind !== "answer") throw new CodeError("That is an invite code, not an answer code.");
     if (p.room !== this.roomId && normalizeRoomId(p.room) !== normalizeRoomId(this.roomId)) {
       throw new CodeError("This answer belongs to a different room.");
     }

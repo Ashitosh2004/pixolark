@@ -18,7 +18,7 @@ export interface ConnectionPayload {
 /** Generates a simple 6-digit room code (e.g. "582914"). */
 export function generateRoomId(): string {
   const bytes = crypto.getRandomValues(new Uint32Array(1));
-  const num = (bytes[0] % 900000) + 100000;
+  const num = (bytes[0]! % 900000) + 100000;
   return `${num}`;
 }
 

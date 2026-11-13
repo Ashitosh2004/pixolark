@@ -43,25 +43,16 @@ function Explainer() {
 }
 
 export function HostWait({ session, onBack }: { session: PeerSession; onBack: () => void }) {
-  const [answer, setAnswer] = useState("");
-  const [scan, setScan] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
   const [, force] = useState(0);
 
   useEffect(() => session.on("state", () => force((x) => x + 1)), [session]);
 
   const submit = useCallback(
     async (code: string) => {
-      setBusy(true);
-      setErr(null);
       try {
         await session.acceptAnswer(code);
       } catch (e: any) {
-        setErr(e.message);
         toast.error(e.message);
-      } finally {
-        setBusy(false);
       }
     },
     [session],
@@ -72,25 +63,10 @@ export function HostWait({ session, onBack }: { session: PeerSession; onBack: ()
     if (!session.localCode || session.state !== "waiting") return;
     void publishSignal(session.roomId, "offer", session.localCode);
     const unsub = subscribeSignal(session.roomId, "answer", (ans) => {
-      if (session.state === "waiting") {
-        setAnswer(ans);
-        void submit(ans);
-      }
+      if (session.state === "waiting") void submit(ans);
     });
     return unsub;
   }, [session.localCode, session.roomId, session.state, submit]);
-
-  const pasteClipboard = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setAnswer(text);
-        void submit(text);
-      }
-    } catch {
-      toast.error("Clipboard permission denied. Please paste manually into the box.");
-    }
-  };
 
   const inviteLink =
     typeof window !== "undefined" && session.localCode
@@ -144,44 +120,18 @@ export function HostWait({ session, onBack }: { session: PeerSession; onBack: ()
         <Countdown until={session.codeExpiresAt} label="Room valid for" />
       </div>
 
-      {/* Right Column: Connection Status & Fallback Answer Input */}
+      {/* Right Column: Connection Status */}
       <div className="pixel-box flex flex-col gap-4 p-6" data-state={st} data-pc={session.pc.connectionState}>
         {st === "waiting" && (
-          <>
-            <div className="flex flex-col items-center gap-3 py-2 text-center">
-              <Loader label="Waiting for friend" />
-              <p className="flex items-center gap-1.5 text-xs text-primary">
-                <Sparkles size={14} /> Automatic 6-digit pairing active: your friend just needs code <b>{session.roomId}</b>
-              </p>
-            </div>
-            <div className="border-t border-border/40 pt-2">
-              <p className="text-xs text-muted-foreground">
-                Manual Fallback: If pairing automatically doesn't trigger, paste your friend's answer code or scan their QR:
-              </p>
-              <textarea
-                className="pixel-input pixel-scroll mt-2 h-24 resize-none font-mono text-xs"
-                placeholder="PXC1.… (Paste answer code if not paired automatically)"
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-              />
-              {err && <p className="mt-1 text-sm text-destructive">{err}</p>}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  className="pixel-btn pixel-btn-primary"
-                  disabled={!answer.trim() || busy}
-                  onClick={() => submit(answer)}
-                >
-                  Connect
-                </button>
-                <button className="pixel-btn pixel-btn-sm" onClick={pasteClipboard}>
-                  <ClipboardPaste size={14} /> Paste
-                </button>
-                <button className="pixel-btn pixel-btn-sm" onClick={() => setScan(true)}>
-                  <ScanLine size={14} /> Scan QR
-                </button>
-              </div>
-            </div>
-          </>
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <Loader label="Waiting for friend" />
+            <p className="flex items-center gap-1.5 text-xs text-primary">
+              <Sparkles size={14} /> Automatic 6-digit pairing active: your friend just needs code <b>{session.roomId}</b>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              The moment your friend scans your QR, opens your link or pastes the code, the room connects automatically — nothing else to copy or paste.
+            </p>
+          </div>
         )}
 
         {(st === "connecting" || st === "handshake") && (
@@ -197,27 +147,16 @@ export function HostWait({ session, onBack }: { session: PeerSession; onBack: ()
         )}
 
         {st === "failed" && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
             <p className="text-sm text-destructive">{session.error}</p>
-            <button className="pixel-btn pixel-btn-primary self-start" onClick={() => submit(answer)}>
-              Try Connecting Again
+            <button className="pixel-btn pixel-btn-sm" onClick={onBack}>
+              Back
             </button>
           </div>
         )}
 
         <Explainer />
       </div>
-
-      {scan && (
-        <QrScanner
-          onClose={() => setScan(false)}
-          onResult={(t) => {
-            setScan(false);
-            setAnswer(t);
-            void submit(t);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -232,8 +171,8 @@ export function GuestJoin({
   onJoin: (room: string, code: string) => Promise<void>;
   session: PeerSession | null;
   onBack: () => void;
-  initialRoom?: string;
-  initialCode?: string;
+  initialRoom?: string | undefined;
+  initialCode?: string | undefined;
 }) {
   const [room, setRoom] = useState(initialRoom ?? "");
   const [code, setCode] = useState(initialCode ?? "");
@@ -349,20 +288,9 @@ export function GuestJoin({
   if (session && session.state !== "failed" && session.state !== "closed") {
     const st = session.state;
     return (
-      <div className="mx-auto grid w-full max-w-5xl gap-8 p-4 lg:grid-cols-2">
-        <div className="pixel-box flex flex-col items-center gap-4 p-6 text-center">
+      <div className="mx-auto w-full max-w-xl p-4">
+        <div className="pixel-box flex flex-col items-center gap-5 p-8 text-center">
           <span className="pixel-label">Room {session.roomId}</span>
-          <p className="flex items-center justify-center gap-1.5 text-xs text-primary">
-            <Sparkles size={14} /> Paired via code {session.roomId}! Auto-linking browsers...
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Fallback: If host does not connect automatically, show this QR or copy the answer code:
-          </p>
-          {session.localCode && <QrCode value={session.localCode} />}
-          {session.localCode && <CopyButton text={session.localCode} label="Copy Answer Code" />}
-          <Countdown until={session.codeExpiresAt} label="Answer valid for" />
-        </div>
-        <div className="pixel-box flex flex-col items-center justify-center gap-5 p-6 text-center">
           <Loader
             label={
               st === "waiting"
@@ -372,6 +300,9 @@ export function GuestJoin({
                   : "Verifying keys"
             }
           />
+          <p className="flex items-center justify-center gap-1.5 text-xs text-primary">
+            <Sparkles size={14} /> Paired via code {session.roomId}! Auto-linking browsers...
+          </p>
           <p className="text-sm text-muted-foreground">
             Connecting directly via WebRTC. (STUN/TURN active, up to 2 minutes connection window).
           </p>

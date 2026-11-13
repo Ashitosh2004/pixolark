@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Environment files (keep .env.example committed; .env holds real values)
+.env
+.env.*
+
 # Vercel
 .vercel/
 

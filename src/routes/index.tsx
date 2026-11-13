@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
 
 const STEPS = [
   { icon: QrCode, title: "1. Create a room", text: "You get a random Room ID plus a connection code and QR. The code holds only public connection info." },
-  { icon: Wifi, title: "2. Friend answers", text: "Your friend enters the Room ID, scans your QR (or pastes the code) and sends back an answer code." },
+  { icon: Wifi, title: "2. Friend joins", text: "Your friend enters the Room ID, scans your QR or opens your invite link — and the room connects instantly. Nothing to send back." },
   { icon: KeyRound, title: "3. Keys are verified", text: "Browsers connect directly, exchange encryption keys and check them against the codes. Compare the safety code to be sure." },
   { icon: Lock, title: "4. Chat privately", text: "Messages, files, stickers and voice notes are encrypted before they leave your device." },
 ];

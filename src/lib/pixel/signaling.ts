@@ -32,7 +32,7 @@ export async function fetchSignal(roomId: string, kind: "offer" | "answer"): Pro
     const lines = text.trim().split("\n");
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
-        const json = JSON.parse(lines[i]);
+        const json = JSON.parse(lines[i]!);
         if (json.message && json.message.includes("PXC1.")) {
           const match = json.message.match(/PXC1\.[A-Za-z0-9_-]+/);
           if (match) return match[0];
