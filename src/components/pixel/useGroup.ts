@@ -285,7 +285,8 @@ export function useGroup(session: GroupSession | null, opts: UseGroupOpts) {
       // receivers with the same verified library render the local asset instead.
       if (m.kind === "sticker" && isLibStickerId(m.sticker)) stickerUrl = await stickerDataUrl(m.sticker);
       const queued = s.role === "member" && s.phase !== "ready";
-      await s.sendContent({ t: "msg", id, kind: m.kind, text: m.text, sticker: m.sticker, stickerLib: isLibStickerId(m.sticker) ? STICKER_LIB_VERSION : undefined, stickerUrl, replyTo: m.replyTo, forwarded: m.forwarded });
+      // senderName travels inside the seal: receivers show exactly who spoke.
+      await s.sendContent({ t: "msg", id, kind: m.kind, senderName: msg.senderName, text: m.text, sticker: m.sticker, stickerLib: isLibStickerId(m.sticker) ? STICKER_LIB_VERSION : undefined, stickerUrl, replyTo: m.replyTo, forwarded: m.forwarded });
       if (!queued) { patch(id, (x) => (x.status === "sending" ? { ...x, status: "sent" } : x)); play(m.kind === "sticker" ? "sticker" : "send"); }
       else toast.info("Queued - connecting to the room's host…");
     } catch {
@@ -305,7 +306,7 @@ export function useGroup(session: GroupSession | null, opts: UseGroupOpts) {
     append(msg);
     persist(msg);
     try {
-      await s.sendContent({ t: "file-start", id, name, size: file.size, mime, kind, replyTo, forwarded });
+      await s.sendContent({ t: "file-start", id, name, size: file.size, mime, kind, senderName: msg.senderName, replyTo, forwarded });
       let sent = 0, lastUi = 0;
       while (sent < file.size) {
         if (cancelled.current.has(id)) { await s.sendContent({ t: "file-cancel", id }).catch(() => {}); return; }

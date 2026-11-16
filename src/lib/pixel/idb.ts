@@ -8,7 +8,7 @@
  * Drafts, prefs and room bookmarks stay in localStorage (storage.ts).
  */
 import { b64url, fromB64url } from "./bytes";
-import { commitmentOf } from "./crypto";
+import { commitmentOf, type Identity } from "./crypto";
 
 const DB_NAME = "pixolark";
 const DB_VERSION = 1;
@@ -49,6 +49,17 @@ export interface GroupIdentity {
   keyPair: CryptoKeyPair;
   publicRaw: Uint8Array<ArrayBuffer>;
   memberId: string;
+}
+
+/**
+ * Adapter for session/crypto APIs that expect an `Identity` (crypto.ts):
+ * same ECDH keyPair + raw public key, with the commitment stored under its
+ * member-id name. Without the `commitment` field the 1:1 handshake embeds an
+ * empty commitment into the answer code and the host rejects every join with
+ * KEY MISMATCH — members would loop on "connecting…" forever.
+ */
+export function asSessionIdentity(g: GroupIdentity): Identity {
+  return { keyPair: g.keyPair, publicRaw: g.publicRaw, commitment: g.memberId };
 }
 
 export async function loadGroupIdentity(roomId: string): Promise<GroupIdentity | null> {

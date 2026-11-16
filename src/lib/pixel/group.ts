@@ -28,7 +28,7 @@
 import { b64url, fromB64url } from "./bytes";
 import { createIdentity, type Identity } from "./crypto";
 import { memberIdOf, newSenderChain, openFromMember, openGroupMessage, peerChainFromDistribute, sealGroupMessage, sealToMember, type GroupWire, type PeerChain, type SenderChain } from "./groupcrypto";
-import { loadGroupIdentity, createGroupIdentity, type GroupIdentity } from "./idb";
+import { asSessionIdentity, loadGroupIdentity, createGroupIdentity, type GroupIdentity } from "./idb";
 import { publishSignal, subscribeSignal, ROOM_CLOSED } from "./signaling";
 import { publishBeacon, beaconOf, BEACON_INTERVAL_MS, type RoomBeacon } from "./discovery";
 import type { Avatar } from "./pixelart";
@@ -38,6 +38,10 @@ import { PeerSession } from "./session";
 
 export type GroupRole = "owner" | "admin" | "mod" | "member";
 export const ROLE_RANK: Record<GroupRole, number> = { owner: 3, admin: 2, mod: 1, member: 0 };
+
+/** While a doorbell sits unanswered, republish its offer at this cadence so a
+ *  lost publish (rate limit, hiccup) or a stale topic can't wedge joining. */
+const OFFER_REPUBLISH_MS = 5 * 60_000;
 
 /** Minimum role for each host-side action; enforced on every path (direct UI or member relay). */
 const ACTION_RANK: Record<string, GroupRole> = {
@@ -281,8 +285,21 @@ export class GroupSession {
     try {
       const db = await PeerSession.host(this.room, this.identity);
       this.doorbell = db;
+      // Self-heal the signaling topic: republish the CURRENT offer while nobody has
+      // joined, so a silently lost publish (rate limit, hiccup) can't strand joiners
+      // on an old invite. Stops the moment this doorbell stops waiting.
+      const republish = window.setInterval(() => {
+        if (this.closed || this.doorbell !== db || db.state !== "waiting" || !db.localCode) { window.clearInterval(republish); return; }
+        void publishSignal(this.room, "offer", db.localCode, 1);
+      }, OFFER_REPUBLISH_MS);
       db.on("state", (st) => {
-        if (st === "secure") { const s = db; this.doorbell = null; void this.adopt(s); void this.openDoorbell(); }
+        if (st !== "waiting") window.clearInterval(republish);
+        if (st === "secure") {
+          // This invite is answered: stop its fallback poll immediately (the next
+          // doorbell subscribes its own), then adopt and open the next reception.
+          this.unsubAnswer?.(); this.unsubAnswer = null;
+          const s = db; this.doorbell = null; void this.adopt(s); void this.openDoorbell();
+        }
         if ((st === "failed" || st === "closed") && this.doorbell === db) { this.doorbell = null; this.timers.push(window.setTimeout(() => void this.openDoorbell(), 1500)); }
       });
       this.unsubAnswer?.();
@@ -844,7 +861,10 @@ export class GroupSession {
     switch (header?.t) {
       case "msg": {
         const m: GroupMessage = {
-          id: String(header.id), from: "peer", senderId: from, senderName: name,
+          id: String(header.id), from: "peer", senderId: from,
+          // The sender's display name rides INSIDE the authenticated seal, so
+          // attribution is instant and can't be forged or delayed by roster sync.
+          senderName: String(header.senderName ?? "").slice(0, 32) || name,
           kind: (["text", "sticker", "voice", "gif", "file"].includes(header.kind) ? header.kind : "text") as GroupMsgKind,
           text: header.text ? String(header.text).slice(0, 4000) : undefined,
           sticker: typeof header.sticker === "string" ? header.sticker.slice(0, 120) : undefined,
@@ -859,7 +879,9 @@ export class GroupSession {
       }
       case "file-start": case "file-chunk": case "file-end": case "file-cancel": {
         const m: GroupMessage = {
-          id: String(header.id), from: "peer", senderId: from, senderName: name, kind: header.t === "file-start" ? (header.kind === "voice" ? "voice" : "file") : "file",
+          id: String(header.id), from: "peer", senderId: from,
+          senderName: String(header.senderName ?? "").slice(0, 32) || name,
+          kind: header.t === "file-start" ? (header.kind === "voice" ? "voice" : "file") : "file",
           file: header.t === "file-start" ? { name: String(header.name ?? "file").slice(0, 120), size: Number(header.size) || 0, mime: String(header.mime ?? "application/octet-stream"), progress: 0, status: "receiving" } : undefined,
           ts: Date.now(), reactions: {},
           replyTo: header.replyTo, forwarded: !!header.forwarded,
@@ -956,10 +978,10 @@ export class GroupSession {
     const g = new GroupSession("member", args.room, GroupSession.placeholderSnapshot(args.room));
     g.groupIdentity = gid;
     g.myId = gid.memberId;
-    g.identity = gid.keyPair as unknown as Identity; // members derive with their stable membership key
+    g.identity = asSessionIdentity(gid); // members derive with their stable membership key
     g.recover = args.onHistory ?? null;
     g.snap.meta = { ...g.snap.meta, room: args.room };
-    const s = await PeerSession.join(args.room, args.offer, gid.keyPair as unknown as Identity);
+    const s = await PeerSession.join(args.room, args.offer, asSessionIdentity(gid));
     g.session = s;
     s.on("message", ({ header, body }) => void g.onMemberFrame(header, body).catch(() => {}));
     s.on("state", (st) => {
@@ -1139,16 +1161,25 @@ export class GroupSession {
 
   private startBeacons(): void {
     if (this.role !== "host" || !this.snap.meta.isPublic) return;
-    const publish = () => {
-      if (this.closed) return;
+    const publish = (): Promise<boolean> => {
+      if (this.closed) return Promise.resolve(true);
       const b: RoomBeacon = beaconOf(this.room, {
         name: this.snap.meta.name, desc: this.snap.meta.desc, cat: this.snap.meta.cat, region: this.snap.meta.region, lang: this.snap.meta.lang,
         members: Math.max(1, this.onlineCount || 1), cap: this.snap.meta.cap, hostName: this.rosterEntry(this.myId)?.name ?? "Host", hostId: this.myId.slice(0, 16),
       });
-      void publishBeacon(b);
+      return publishBeacon(b);
     };
-    publish();
-    this.beaconTimer = window.setInterval(publish, BEACON_INTERVAL_MS);
+    // First beacon immediately; if the pub/sub swallows it (rate limit), retry
+    // shortly instead of leaving the room invisible for a full beacon cycle.
+    void (async () => {
+      if (await publish()) return;
+      for (const waitMs of [6_000, 18_000]) {
+        if (this.closed) return;
+        await new Promise<void>((r) => this.timers.push(window.setTimeout(r, waitMs)));
+        if (await publish()) return;
+      }
+    })();
+    this.beaconTimer = window.setInterval(() => void publish(), BEACON_INTERVAL_MS);
   }
 
   private stopBeacons(): void {

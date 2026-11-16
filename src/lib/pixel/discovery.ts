@@ -9,10 +9,14 @@
  * - Nothing is stored server-side beyond the pub/sub's own short cache; no database.
  * - A fake beacon can only create a listing that fails on join — joining always
  *   re-authenticates against the room's real offer + host identity commitment.
+ *
+ * The cadence respects ntfy.sh's free-tier daily message quota (250/day per IP):
+ * 1 beacon / 4 min keeps a hosted session comfortably inside it. Self-hosting the
+ * pub/sub removes the ceiling entirely (see docs/DEPLOYMENT.md).
  */
 import { b64url, te } from "./bytes";
 
-export const BEACON_INTERVAL_MS = 45_000;
+export const BEACON_INTERVAL_MS = 4 * 60_000;
 export const STALE_MS = 2 * BEACON_INTERVAL_MS;
 const INDEX_TOPIC = "pxl_rooms_v1";
 

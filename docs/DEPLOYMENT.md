@@ -59,7 +59,29 @@ for the app itself (WebRTC media bypasses your server entirely).
 | --- | --- | --- |
 | STUN (WebRTC) | public STUN URLs in `session.ts` | IP discovery metadata only |
 | Manual signaling | `https://ntfy.sh/pxl_<digits>_<offer|answer>` | WebRTC offer/answer codes (ciphertext-level connection data) |
-| Discovery beacons | `https://ntfy.sh/pxl_rooms_v1` | public room metadata every 45 s |
+| Discovery beacons | `https://ntfy.sh/pxl_rooms_v1` | public room metadata every 4 min |
+
+### Free-tier rate limits (why the cadence is what it is)
+
+ntfy.sh's free tier allows roughly **60 requests / 5 min** (burst) and
+**250 messages / day** per visitor IP, shared by everything one visitor does.
+The app is engineered to stay far below both:
+
+- Signaling uses **SSE** as the primary transport. The HTTP poll runs only as a
+  fallback — a slow 15 s cadence that continues while the stream has never
+  delivered an event, and stops while the stream demonstrably flows (last event
+  < 5 min old). 429 responses double the poll interval, capped at 60 s.
+- Publishes retry transient failures with short backoff (the room-closed
+  tombstone is a single keepalive shot because it rides `pagehide`).
+- Public-room beacons publish once every **4 min** (≈ 360/day for a session
+  hosted all day), with quick 6 s / 18 s retries if the first beacon fails.
+- An unanswered group doorbell republishes its offer every 5 min so a silently
+  lost publish can't wedge joins.
+
+Do not "optimize" these cadences down (faster beacons / tighter polls) without
+self-hosting: an earlier build polled the answer topic every 2.5 s for the
+room's whole lifetime, which alone exhausted the 60-request bucket ~2 min after
+hosting and made rooms invisible and unjoinable for everyone.
 
 ### Self-hosting the pub/sub (recommended for sensitive deployments)
 
@@ -72,8 +94,9 @@ Both features talk to ntfy with plain `fetch` against the base URL
 2. Change the base URL constant in those two modules and redeploy. Every client
    (host and guest) must use the same instance or rooms will not find each other.
 
-The publish cadence (1 beacon / 45 s per hosted room, plus short signaling bursts)
-fits comfortably inside ntfy's default rate limits.
+The publish cadence (1 beacon / 4 min per hosted room, plus short signaling bursts)
+fits comfortably inside ntfy's default rate limits; self-hosting removes the
+visitor-IP ceilings entirely.
 
 ## What NOT to deploy
 
@@ -110,7 +133,8 @@ steps are end-user actions; nothing needs test credentials.
 
 **Groups**
 6. Desktop hosts a public group via the wizard (pick a category/region). It appears
-   in Discover on the phone within ~45 s, with the right name and online count.
+   in Discover on the phone within ~30 s (the Discover screen refreshes every 30 s),
+   with the right name and online count.
 7. Phone joins from Discover → host approves (if enabled) or joins directly;
    messages, reactions, replies, file transfer work group-wide.
 8. Host kicks or mutes the phone → phone is removed/muted and does *not*

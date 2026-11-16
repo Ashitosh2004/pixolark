@@ -8,7 +8,7 @@ third-party infrastructure is:
 2. **ntfy.sh pub/sub** — used two ways, both carrying **ciphertext or metadata only**:
    - *manual signaling*: hosts publish offer codes / guests publish answer codes under
      per-room topics (`pxl_<digits>_<offer|answer>`), usually via QR or copy/paste;
-   - *discovery beacons*: hosts of public rooms publish short metadata every 45 s on the
+   - *discovery beacons*: hosts of public rooms publish short metadata every 4 min on the
      `pxl_rooms_v1` topic so the Discover screen can list live rooms.
 
 Everything else happens directly between browsers over WebRTC DataChannels.
@@ -30,11 +30,11 @@ Everything else happens directly between browsers over WebRTC DataChannels.
 | --- | --- |
 | `src/lib/pixel/crypto.ts` | 1:1 channel identity, ECDH P-256 + HKDF-SHA-256 → AES-GCM-256, frame seal/open with seq-number AAD (replay & tamper rejection) |
 | `src/lib/pixel/session.ts` | `PeerSession`: WebRTC host/join, hello handshake, key commitment verification, encrypted frame pump, calls |
-| `src/lib/pixel/signaling.ts` | Manual signaling over ntfy topics, offer/answer publish+subscribe, `ROOM_CLOSED` tombstones |
+| `src/lib/pixel/signaling.ts` | Manual signaling over ntfy topics: offer/answer publish (with retry), SSE-first subscribe with a rate-limit-aware slow poll fallback, `limited` reporting, `ROOM_CLOSED` tombstones (single keepalive shot) |
 | `src/lib/pixel/group.ts` | `GroupSession`: host (coordinator/relay/moderator) and member logic, sender-key distribution, rate limiting, roster, snapshots, beacons |
 | `src/lib/pixel/groupcrypto.ts` | Signal-style sender keys: per-sender hash ratchet, pairwise-sealed key envelopes, replay rejection |
 | `src/lib/pixel/idb.ts` | IndexedDB: per-room **non-extractable** membership identity, encrypted history log |
-| `src/lib/pixel/discovery.ts` | Beacon format, 45 s publish interval, staleness (`>90 s`), category/region/language catalogs, room check-fingerprints |
+| `src/lib/pixel/discovery.ts` | Beacon format, 4 min publish interval, staleness (`>8 min`), category/region/language catalogs, room check-fingerprints |
 | `src/lib/pixel/notifications.ts` | Central notification router: DND, per-room mute, mention urgency, session activity log |
 | `src/lib/pixel/storage.ts` | Preferences, drafts, scroll anchors, bookmarks + per-room mute, recent rooms, host room snapshots, passphrase-encrypted backup |
 | `src/lib/pixel/pixelart.ts`, `stickers.ts`, `stickercatalog.ts` | Pure drawing code (`@ts-nocheck`) — no app logic |
@@ -101,7 +101,7 @@ All ride the pairwise encrypted channels:
 | --- | --- | --- |
 | `g-snap` | host → member | full roster/meta/epoch/pins/rules/bans state |
 | `g-key` | member ↔ host ↔ member | pairwise-sealed sender-chain envelopes (host relays verbatim, cannot read them without being a key-holder itself) |
-| `g-msg` | member → host → members | sealed content + coarse class `msg`/`chunk` outside the seal |
+| `g-msg` | member → host → members | sealed content + coarse class `msg`/`chunk` outside the seal; the sealed header also carries the sender's display name (`senderName`, ≤32 chars), so every bubble shows exactly who spoke — the receiving client prefers the sealed name over roster timing and it can't be forged (it's inside the AEAD seal) |
 | `g-read` | member → host → members | read receipts (own sends only) |
 | `g-pres` | both | typing/viewing/online presence |
 | `g-note` | host → member | moderation notices (muted, kicked, approved, denied…) |
@@ -139,11 +139,14 @@ All ride the pairwise encrypted channels:
 
 ## Presence, discovery, regional communities
 
-- Hosts of public rooms publish beacons every 45 s (name, description, category,
+- Hosts of public rooms publish beacons every 4 min (name, description, category,
   region, language, live member count, capacity, host name, host commitment,
-  closed flag). The Discover screen polls recent beacons, dedupes per room, and
-  marks anything older than 90 s "host offline"; closed rooms are listed last and
-  cannot be joined.
+  closed flag). The cadence is deliberate: it keeps a hosted session comfortably
+  inside ntfy.sh's free-tier daily message quota. The first beacon is retried
+  at 6 s / 18 s if the pub/sub swallows it, so a fresh room doesn't sit
+  invisible for a whole cycle. The Discover screen polls recent beacons (every
+  30 s), dedupes per room, and marks anything older than 8 min "host offline";
+  closed rooms are listed last and cannot be joined.
 - "Regional" and category filters are pure client-side views over the same live
   beacon feed — there is no server-side index of communities.
 - The check fingerprint next to each listing is a whole-string hash of
@@ -195,6 +198,19 @@ message may interrupt:
   learns a room code can *poll* its signaling topic; they still cannot join without
   producing a valid WebRTC answer that completes the cryptographic handshake.
   Self-hosting ntfy (see DEPLOYMENT.md) removes that third party.
+- **Free-tier rate limits are a design constraint, not an afterthought.** ntfy.sh
+  allows roughly 60 requests / 5 min and 250 messages / day per visitor IP. The
+  signaling layer is engineered around this: SSE is the primary transport and is
+  trusted only while it demonstrably delivers events (a socket that stays "open"
+  but silent keeps the fallback alive); the HTTP poll runs at a slow 15 s cadence
+  only until SSE proves flow, and backs off exponentially (up to 60 s) on 429s;
+  publishes retry transient failures (but the `ROOM_CLOSED` tombstone is a single
+  keepalive shot); beacon cadence is 4 min; an unanswered doorbell republishes its
+  offer every 5 min. Worst-case combined load stays well under the burst bucket.
+  A historical bug made the answer-topic poll run every 2.5 s for the room's whole
+  lifetime, which exhausted the shared IP bucket ~2 min after hosting and made
+  rooms vanish from Discover and reject joins — the tests in
+  `src/test/signaling-rate.test.ts` pin these behaviors.
 - **IP exposure**: WebRTC is peer-to-peer; participants see each other's IP.
   STUN servers see connection metadata. There is no TURN relay, so symmetric-NAT or
   firewall-restricted networks may fail to connect.
