@@ -25,6 +25,8 @@ interface Props {
   prefs: Prefs;
   setPrefs: (fn: (p: Prefs) => Prefs) => void;
   muted: boolean;
+  /** Honest coordinator note for community rooms (offline, lease state…). */
+  coordHint?: string | null | undefined;
   onLeave: () => void;
   onBack: () => void;
 }
@@ -55,6 +57,8 @@ export function GroupView(p: Props) {
   const lastCount = useRef(api.messages.length);
   const meta = api.snap?.meta;
   const secure = group.isSecure();
+  // Community-room honesty: surface coordinator facts exactly as they are.
+  const banner = p.coordHint ?? (group.phase === "reconnecting" ? "Reconnecting to the room…" : null);
 
   const scrollToBottom = useCallback((smooth = true) => {
     const el = listRef.current;
@@ -194,6 +198,11 @@ export function GroupView(p: Props) {
       </header>
 
       {/* State banners */}
+      {banner && !api.stopReason && (
+        <div className="flex items-center justify-center gap-2 bg-muted px-3 py-2 text-sm text-muted-foreground">
+          <AlertTriangle size={14} /> {banner}
+        </div>
+      )}
       {api.stopReason && (
         <div className="flex items-center justify-center gap-2 bg-destructive px-3 py-2 text-sm text-destructive-foreground">
           <AlertTriangle size={14} /> {api.stopReason}

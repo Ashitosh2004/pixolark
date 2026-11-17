@@ -1,0 +1,228 @@
+{
+  "v": 1,
+  "section": "languages/hindi",
+  "generatedAt": 1794858354060,
+  "rooms": [
+    {
+      "roomId": "422472",
+      "name": "Anime Corner",
+      "desc": "Anime and manga",
+      "type": "public",
+      "category": "Anime",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "mPB0k9R8ZFJsgmOenGhGGxl1otvjMnT_6T6tOTueu_nokHPcduD2j0mPmAt_HrZ1p_qEwpV6t7GW3zpErWS-Iw"
+    },
+    {
+      "roomId": "424253",
+      "name": "Study Hall",
+      "desc": "Learn together",
+      "type": "public",
+      "category": "Education",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "U7-1QZdsRzSFYJNsUgAiff46PAi4fSFi4HtCASF_nYxCqomp8o-hXITUEPmIlcTI2OPZpHvya4ewBe4YZoaR5Q"
+    },
+    {
+      "roomId": "425643",
+      "name": "India Lounge",
+      "desc": "Rooms from across India",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "JCYVC0G-KkQm6WCjYmu7BUaScRPkk3kbRgi2xFgWuInsYYGh91fZZ59B2hM3vo2k5NTvmbVa4gR4vopfXV3Xdw"
+    },
+    {
+      "roomId": "426053",
+      "name": "Maharashtra Adda",
+      "desc": "Maharashtra regional lounge",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "iwiignq2P5CK5HJraIyD4WEmMrZWou6lWfme1lCOhN2GQ2GXE6VUG5kR_LuHQ5XmslnyQv2h8dPcZ4GrWMN41w"
+    },
+    {
+      "roomId": "427034",
+      "name": "Mumbai Pixels",
+      "desc": "Mumbai city room",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "Mumbai",
+      "languages": [
+        "Marathi",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "6XSSuBl-8d4eKcuxUOX6hVokYbziZ_vkrhwuxeGcWSJsZT4U5_4YC7CcGh66_3cbvvSeg9X2ow3TtcH9oW9WIQ"
+    }
+  ]
+}

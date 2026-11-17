@@ -1,0 +1,660 @@
+{
+  "v": 1,
+  "section": "languages/english",
+  "generatedAt": 1794858354060,
+  "rooms": [
+    {
+      "roomId": "421170",
+      "name": "Global Lounge",
+      "desc": "The main gathering space",
+      "type": "public",
+      "category": "General Chat",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "hHcVSiTYSnMi4S1eYx-0gifamhU49baZl1LdFNjRpPMhphrtK4XHRfOIf0LOn5JRSvwWFqXHvzNZIaJjxoybkg"
+    },
+    {
+      "roomId": "421860",
+      "name": "Tech Talk",
+      "desc": "Gadgets, code and future stuff",
+      "type": "public",
+      "category": "Technology",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "NJtUEyccXFri5zplvFl00qekpXGLTJ_55KoEdnI6mxONzjCpmXDnJQUsYVPBkwjg3QOgwCcGWRkYhShUG3qUuQ"
+    },
+    {
+      "roomId": "422277",
+      "name": "Pixel Arcade",
+      "desc": "Gaming nights, pixel style",
+      "type": "public",
+      "category": "Gaming",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "lObVtqDsV7fFM7pR9yNjKs1LmJvZEX5dQwmDkjMZB_7mhPK9j4KjQHb23P9Axrx6gM13FfuuBkvaICPktU3ujQ"
+    },
+    {
+      "roomId": "422472",
+      "name": "Anime Corner",
+      "desc": "Anime and manga",
+      "type": "public",
+      "category": "Anime",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "mPB0k9R8ZFJsgmOenGhGGxl1otvjMnT_6T6tOTueu_nokHPcduD2j0mPmAt_HrZ1p_qEwpV6t7GW3zpErWS-Iw"
+    },
+    {
+      "roomId": "422739",
+      "name": "Now Playing",
+      "desc": "Music sharing",
+      "type": "public",
+      "category": "Music",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "yuqZx-lyEsmla2Ku2eNN71XnM0Jhv1Q28q8tP1elknlZOWufW0wLsixRQejNIu4Ipw2rUdln3QwTe1YEjy6Jlg"
+    },
+    {
+      "roomId": "423388",
+      "name": "Screening Room",
+      "desc": "Movies and shows",
+      "type": "public",
+      "category": "Movies",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "wxiwnduiJbmEKpZ3jjNnEz9XlK7UzDkmchLioHp8Whczh8X1YBqtlqvrLc8vRpqVAOb182fzaLu6qYhXOS2FLg"
+    },
+    {
+      "roomId": "424253",
+      "name": "Study Hall",
+      "desc": "Learn together",
+      "type": "public",
+      "category": "Education",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "U7-1QZdsRzSFYJNsUgAiff46PAi4fSFi4HtCASF_nYxCqomp8o-hXITUEPmIlcTI2OPZpHvya4ewBe4YZoaR5Q"
+    },
+    {
+      "roomId": "424507",
+      "name": "Meme Gallery",
+      "desc": "The finest pixel memes",
+      "type": "public",
+      "category": "Memes",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "SEvxsM8KIBdLx-5izYBFStxg0zVCDZyZRuTfRo2BVymags-8iJp7lbRvNEoUl9ggsS4g4HOYtBMYn6CU_qA-_A"
+    },
+    {
+      "roomId": "424733",
+      "name": "Snapshot",
+      "desc": "Photography",
+      "type": "public",
+      "category": "Photography",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "U4Ga0JMs0yoIUKzIOXE046wP-H-yrQxZ8Rzd4XxNAa3JoP1NsHVGYvbILq_JB4UtFlKvY7kDcASMN2oruRGE8g"
+    },
+    {
+      "roomId": "425536",
+      "name": "Wander",
+      "desc": "Travel stories",
+      "type": "public",
+      "category": "Travel",
+      "region": "",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "5p06Z7WWQLZ43mak-os4vHBxgJpKXBUuRO34mWPmyHuLYn67-Y-f46H4wr3H5W847G1s5rN1-INlbHqw8W1-WA"
+    },
+    {
+      "roomId": "425643",
+      "name": "India Lounge",
+      "desc": "Rooms from across India",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "",
+      "city": "",
+      "languages": [
+        "English",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "JCYVC0G-KkQm6WCjYmu7BUaScRPkk3kbRgi2xFgWuInsYYGh91fZZ59B2hM3vo2k5NTvmbVa4gR4vopfXV3Xdw"
+    },
+    {
+      "roomId": "426053",
+      "name": "Maharashtra Adda",
+      "desc": "Maharashtra regional lounge",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "iwiignq2P5CK5HJraIyD4WEmMrZWou6lWfme1lCOhN2GQ2GXE6VUG5kR_LuHQ5XmslnyQv2h8dPcZ4GrWMN41w"
+    },
+    {
+      "roomId": "426848",
+      "name": "Pune Pixels",
+      "desc": "Pune city room",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "Pune",
+      "languages": [
+        "Marathi",
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "7d3BSLqsXgZhPc9TFbOZSUvAL-Y5cEKmt1kK47jucpB5-8MeF1P9npyd4OPlUQ0FyN7N2sn68cKOT8IY4lrJvw"
+    },
+    {
+      "roomId": "427575",
+      "name": "Bengaluru Pixels",
+      "desc": "Bengaluru city room",
+      "type": "public",
+      "category": "Technology",
+      "region": "India",
+      "subRegion": "Karnataka",
+      "city": "Bengaluru",
+      "languages": [
+        "Kannada",
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "OloGPajhe3zrlUKSyHQ8WVfVB9P0iL_YJ-zacELEIuQl58upEBa_gqUYIaUNtkrwrmWvkWq2Nyu1B1-PyVjgAA"
+    },
+    {
+      "roomId": "427792",
+      "name": "Karnataka Kone",
+      "desc": "Karnataka regional lounge",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Karnataka",
+      "city": "",
+      "languages": [
+        "Kannada",
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "xMjjsQGSlPY4JE1zVdWWUrOzwS9DE9UAZ5BTicQWbQCm44kToNHhoJXQT-ViiLBgEFz-YbP5nVhxvxdKrGcKpA"
+    }
+  ]
+}

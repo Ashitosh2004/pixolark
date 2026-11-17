@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { LastRoom, Prefs, RoomBookmark } from "@/lib/pixel/storage";
+import type { RoomManifest } from "@/lib/pixel/manifest";
 import {
   isRoomMuted, loadBookmarks, loadRecentRooms, loadGroupSnapshot, removeBookmark,
   setRoomMuted, type RecentRoom,
@@ -50,6 +51,8 @@ interface Props {
   onCreateGroup: () => void; // GroupCreate screen
   onHostGroupAgain: (room: string) => void;
   onJoinGroup: (room: string) => void;
+  onJoinGroupManifest: (room: string, manifest: RoomManifest) => void;
+  probeRoom: (roomId: string) => Promise<boolean | null>;
   onJoinPeer: (room: string) => void; // 1:1 join by room id
   onReturnToGroup?: (() => void) | undefined;
   onLeaveGroup?: (() => void) | undefined;
@@ -177,7 +180,13 @@ export function Hub(p: Props) {
           )}
 
           {p.tab === "discover" && (
-            <DiscoverView onJoin={p.onJoinGroup} joining={p.joiningRoom} onBack={() => p.setTab("groups")} />
+            <DiscoverView
+              onJoin={p.onJoinGroup}
+              onJoinManifest={p.onJoinGroupManifest}
+              probeRoom={p.probeRoom}
+              joining={p.joiningRoom}
+              onBack={() => p.setTab("groups")}
+            />
           )}
 
           {p.tab === "saved" && (

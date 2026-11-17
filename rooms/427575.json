@@ -1,0 +1,44 @@
+{
+  "roomId": "427575",
+  "name": "Bengaluru Pixels",
+  "desc": "Bengaluru city room",
+  "type": "public",
+  "category": "Technology",
+  "region": "India",
+  "subRegion": "Karnataka",
+  "city": "Bengaluru",
+  "languages": [
+    "Kannada",
+    "English"
+  ],
+  "owner": {
+    "id": "05a32739ba5616543638",
+    "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+  },
+  "host": {
+    "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+  },
+  "coordinator": {
+    "urls": []
+  },
+  "capabilities": {
+    "media": true,
+    "stickers": true,
+    "history": false,
+    "slowMode": false,
+    "approval": false
+  },
+  "invitation": {
+    "method": "open"
+  },
+  "policy": {
+    "recovery": "owner-only",
+    "coOwners": []
+  },
+  "createdAt": 1794858278145,
+  "updatedAt": 1794858278145,
+  "expiresAt": 1797450278145,
+  "v": 1,
+  "alg": "ES256-P256",
+  "signature": "OloGPajhe3zrlUKSyHQ8WVfVB9P0iL_YJ-zacELEIuQl58upEBa_gqUYIaUNtkrwrmWvkWq2Nyu1B1-PyVjgAA"
+}

@@ -182,7 +182,10 @@ export function loadRecentRooms(): RecentRoom[] {
 
 export function pushRecentRoom(room: string, kind: "group" | "peer", name: string, role?: "host" | "member") {
   try {
-    const list = loadRecentRooms().filter((r) => r.room !== room);
+    // Dedupe within the same KIND only: a group and a 1:1 rejoin of the same
+    // room code are different list entries (a group rehost must survive a
+    // 1:1 "rejoin room" of the same code, and the other way around).
+    const list = loadRecentRooms().filter((r) => !(r.room === room && r.kind === kind));
     list.unshift({ room, kind, name, at: Date.now(), role });
     localStorage.setItem(RECENTS, JSON.stringify(list.slice(0, 12)));
   } catch { /* quota */ }

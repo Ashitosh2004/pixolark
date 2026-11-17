@@ -1,0 +1,29 @@
+{
+  "v": 1,
+  "generatedAt": 1794858354060,
+  "mirrors": [],
+  "sections": [
+    "cities/belgaum.json",
+    "cities/bengaluru.json",
+    "cities/kolhapur.json",
+    "cities/mumbai.json",
+    "cities/pune.json",
+    "countries/india.json",
+    "global/anime.json",
+    "global/education.json",
+    "global/gaming.json",
+    "global/general-chat.json",
+    "global/memes.json",
+    "global/movies.json",
+    "global/music.json",
+    "global/photography.json",
+    "global/technology.json",
+    "global/travel.json",
+    "languages/english.json",
+    "languages/hindi.json",
+    "languages/kannada.json",
+    "languages/marathi.json",
+    "states/karnataka.json",
+    "states/maharashtra.json"
+  ]
+}

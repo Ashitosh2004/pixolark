@@ -5,6 +5,18 @@ import { PeerSession, type SessionState } from "@/lib/pixel/session";
 import { GroupSession, type GroupMeta } from "@/lib/pixel/group";
 import { play, setSoundEnabled } from "@/lib/pixel/sound";
 import { fetchSignal, publishSignal, ROOM_CLOSED, subscribeSignal } from "@/lib/pixel/signaling";
+import { CoordinatorClient, type CoordinatorState } from "@/lib/pixel/coordinator";
+import { CoordinatorMemberLink, CoordinatorReception } from "@/lib/pixel/coordinator-room";
+import {
+  ensureUserIdentity,
+  registerCommunityRoom,
+  reownCommunityRoom,
+  saveUserName,
+  verifyOfferAgainstManifest,
+  type UserIdentity,
+} from "@/lib/pixel/community";
+import { loadRecovery, saveRecovery } from "@/lib/pixel/recovery";
+import type { RoomManifest } from "@/lib/pixel/manifest";
 import {
   clearAllLocalData, clearHistory, clearLastRoom, loadGroupSnapshot, loadHistory, loadLastRoom, loadPrefs,
   purgeOldHistory, pushRecentRoom, saveBookmark, saveHistory, saveLastRoom, savePrefs, defaultPrefs,
@@ -22,6 +34,19 @@ import { useGroup } from "./useGroup";
 import { PixelBackground } from "./ui";
 
 type Stage = "hub" | "host" | "join" | "chat" | "group" | "group-create";
+
+/** Group snapshot → community manifest metadata (public rooms only). */
+function communityMetaOf(g: GroupSession) {
+  const m = g.snap.meta;
+  return {
+    name: m.name,
+    desc: m.desc,
+    type: "public" as const,
+    category: m.cat,
+    region: m.region || "",
+    languages: m.lang ? [m.lang] : ["English"],
+  };
+}
 
 export default function PixelApp({
   mode,
@@ -54,6 +79,52 @@ export default function PixelApp({
   const regroupingRef = useRef(false);
   const stageRef = useRef<Stage>("hub");
   const lastNamedRef = useRef<string | null>(null);
+
+  // ---------- coordinator (community rooms) ----------
+  // One app-level connection. The coordinator relays ONLY signed manifests,
+  // presence and WebRTC SDP — chat content stays on E2EE DataChannels.
+  const coordRef = useRef<CoordinatorClient | null>(null);
+  const [coordState, setCoordState] = useState<CoordinatorState>({ s: "idle" });
+  const [coordHint, setCoordHint] = useState<string | null>(null);
+  const receptionRef = useRef<CoordinatorReception | null>(null);
+  const memberLinkRef = useRef<CoordinatorMemberLink | null>(null);
+  const activeCommunityRoom = useRef<string | null>(null);
+  const userRef = useRef<UserIdentity | null>(null);
+
+  const COORDINATOR_URL = (import.meta.env["VITE_COORDINATOR_URL"] as string | undefined) ?? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/coordinator`;
+
+  /** Lazily create + connect the coordinator client (idempotent). */
+  const coordinator = useCallback((): CoordinatorClient => {
+    if (coordRef.current) return coordRef.current;
+    const client = new CoordinatorClient({
+      url: COORDINATOR_URL,
+      name: prefs.username,
+      onState: (s) => setCoordState(s),
+      onRoomOffline: (roomId) => {
+        if (activeCommunityRoom.current === roomId) setCoordHint("This room went offline — its host's lease ended. Waiting for the host to return…");
+      },
+      onError: (code, message) => {
+        if (code === "room-unavailable" || code === "proof-invalid") setCoordHint(message);
+      },
+    });
+    client.setRtcHandler((roomId, from, data) => {
+      // Route relayed signaling to whichever side we currently are.
+      if (receptionRef.current && activeCommunityRoom.current === roomId) void receptionRef.current.handleRtc(from, data);
+      if (memberLinkRef.current && activeCommunityRoom.current === roomId) memberLinkRef.current.handleRtc(from, data);
+    });
+    coordRef.current = client;
+    client.connect();
+    return client;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [COORDINATOR_URL]);
+
+  const dropCoordinatorSides = useCallback(() => {
+    receptionRef.current?.stop();
+    receptionRef.current = null;
+    memberLinkRef.current?.stop();
+    memberLinkRef.current = null;
+    activeCommunityRoom.current = null;
+  }, []);
 
   const setPrefs = useCallback((fn: (p: Prefs) => Prefs) => setPrefsState((p) => { const n = fn(p); savePrefs(n); return n; }), []);
   const api = useChat(session, prefs, { muted, blocked, initial: [] });
@@ -283,41 +354,110 @@ export default function PixelApp({
 
   // ---------- group flows ----------
 
-  /** Host a new group room (wizard) or re-host a saved one (ownership recovery). */
+  /** Host a new group room (wizard) or re-host a saved one (ownership recovery).
+   *  Public rooms register with the coordinator: a signed manifest + live lease
+   *  make the room joinable/recoverable, and the reception hands out doorbell
+   *  offers over the encrypted-coordinator signaling relay. */
   const hostGroup = useCallback(async (meta?: Partial<GroupMeta>, savedRoom?: string) => {
     setBusy(true);
+    setCoordHint(null);
     try {
       session?.close(false);
       setSession(null);
       if (group) { await group.closeRoom(); setGroup(null); }
+      dropCoordinatorSides();
       const room = savedRoom ? normalizeRoomId(savedRoom) : generateRoomId();
       const saved = savedRoom ? loadGroupSnapshot(savedRoom) : null;
+      const isPublic = (meta?.isPublic ?? saved?.snap.meta.isPublic) ?? true;
+
+      // Community rooms bind to the STABLE user identity so the manifest's host
+      // commitment matches the live WebRTC peer across restarts.
+      let stable: UserIdentity | null = null;
+      if (isPublic) stable = await ensureUserIdentity();
+
       const g = await GroupSession.openAsHost({
         room,
         ...(saved ? {} : { meta: meta ?? {} }),
         saved: saved?.snap ?? null,
         profile: { name: prefs.username, avatar: prefs.avatar, status: prefs.status },
+        ...(stable ? { identity: stable.identity } : {}),
       });
       setGroup(g);
       setStage("group");
       pushRecentRoom(room, "group", g.snap.meta.name, "host");
       saveBookmark({ room, kind: "group", name: g.snap.meta.name, at: Date.now() });
-      toast(g.snap.meta.isPublic ? "Room is open and listed in Discover." : "Room is open — share the room code to invite people.");
+      void saveUserName(prefs.username);
+      if (!savedRoom) saveLastRoom(room, "host");
+
+      if (stable) {
+        const client = coordinator();
+        userRef.current = stable;
+        activeCommunityRoom.current = room;
+        // (Re)register the signed manifest — restart re-own, or a fresh create
+        // (also upgrades legacy rooms that never had a manifest).
+        const recovery = await loadRecovery();
+        const known = recovery.manifests[room];
+        let manifest: RoomManifest | null = null;
+        try {
+          manifest = known
+            ? ((await reownCommunityRoom(client, room, stable)) ?? (await registerCommunityRoom(client, room, communityMetaOf(g), stable, known)))
+            : (await registerCommunityRoom(client, room, communityMetaOf(g), stable));
+        } catch (e: unknown) {
+          setCoordHint(`Coordinator registration failed: ${e instanceof Error ? e.message : e}`);
+        }
+        if (!manifest) {
+          setCoordHint((h) => h ?? "Room is open locally, but its coordinator registration failed — joiners can still use the live beacon listing.");
+        } else {
+          // Reception: answers `want` asks with doorbell offers and feeds the
+          // completed handshakes into the group (same trust path as ntfy).
+          receptionRef.current = new CoordinatorReception(
+            client, room, stable.identity,
+            (s) => g.adoptDoorbell(s),
+            (message) => setCoordHint(message),
+          );
+          void receptionRef.current.ensureDoorbell().catch(() => {});
+          toast(`"${g.snap.meta.name}" is listed — live while you host. Export its manifest in Settings to add it to a public directory.`);
+        }
+      } else {
+        toast(g.snap.meta.isPublic ? "Room is open and listed in Discover." : "Room is open — share the room code to invite people.");
+      }
     } catch (e: any) {
       toast.error(typeof RTCPeerConnection === "undefined" ? "Your browser doesn't support WebRTC." : `Couldn't open the room: ${e?.message ?? e}`);
     } finally { setBusy(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, group, prefs]);
+  }, [session, group, prefs, coordinator, dropCoordinatorSides]);
 
-  /** Member: join a room by id via the host's live offer (Discover / recents / codes). */
-  const joinGroup = useCallback(async (room: string) => {
+  /** Member: join a room by id. Community rooms (manifest with coordinator
+   *  signaling, or a room the coordinator knows) join through the coordinator's
+   *  rtc relay; everything else uses the legacy ntfy doorbell. Both paths end
+   *  in the same E2EE handshake — the coordinator never sees chat content. */
+  const joinGroup = useCallback(async (room: string, manifest?: RoomManifest) => {
     setBusy(true);
     setJoiningRoom(room);
+    setCoordHint(null);
     try {
       session?.close(false);
       setSession(null);
       if (group) { await group.closeRoom(); setGroup(null); }
+      dropCoordinatorSides();
       const r = normalizeRoomId(room);
+      const known = manifest ?? (await loadRecovery()).manifests[r];
+      const coordinatorSignaled = !!known?.coordinator?.urls?.length;
+
+      if (coordinatorSignaled || (await probeQuick(coordinator(), r)) === true) {
+        const g = await connectCommunity(r, known);
+        if (g) {
+          setGroup(g);
+          setStage("group");
+          pushRecentRoom(r, "group", known?.name ?? r, "member");
+          return;
+        }
+        // connectCommunity already surfaced the honest reason; if it fell
+        // through without a group AND the room wasn't manifest-listed, try
+        // the legacy doorbell before giving up.
+        if (coordinatorSignaled) return;
+      }
+
       const { code, closed } = await fetchSignal(r, "offer");
       if (closed) { toast.error("That room was closed by its host."); return; }
       if (!code) { toast.error("No host is waiting for that room right now — it may be offline. Live listings in Discover always show this."); return; }
@@ -329,14 +469,81 @@ export default function PixelApp({
       toast.error(e?.message ?? "Could not join the room.");
     } finally { setBusy(false); setJoiningRoom(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, group, prefs]);
+  }, [session, group, prefs, coordinator, dropCoordinatorSides]);
 
-  /** Tear down the open group without leaving the app. */
+  /** Short honest probe: true = live lease, false/null = not available.
+   *  Awaits the socket's welcome first — a probe frame sent on a CONNECTING
+   *  socket is dropped and the answer would be a fake "not available". */
+  const probeQuick = useCallback(async (client: CoordinatorClient, roomId: string): Promise<boolean | null> => {
+    if (!(await client.ready(6000))) return null; // couldn't ask — honest
+    const waiter = client.onceProbe(roomId, 4000);
+    client.probe(roomId);
+    return waiter;
+  }, []);
+
+  /** Coordinator-joined member flow: reception → offer → verified handshake. */
+  const connectCommunity = useCallback(async (r: string, manifest?: RoomManifest): Promise<GroupSession | null> => {
+    const client = coordinator();
+    memberLinkRef.current?.stop();
+    activeCommunityRoom.current = r;
+    let offerResolve: ((code: string) => void) | null = null;
+    const offerP = new Promise<string>((res) => { offerResolve = res; });
+    const link = new CoordinatorMemberLink(client, r, prefs.username, {
+      onOffer: (code) => offerResolve?.(code),
+      onRoomOffline: () => setCoordHint("This room went offline — its host's lease ended. Try again when the host is back."),
+      onError: (message) => setCoordHint(message),
+    });
+    memberLinkRef.current = link;
+    const state = await link.connect();
+    if (!state) { memberLinkRef.current = null; activeCommunityRoom.current = null; return null; }
+    const code = await offerP;
+    memberLinkRef.current = null; // handshake hands off to the session from here
+    activeCommunityRoom.current = null;
+    try {
+      // Listed rooms prove the host: the offer's commitment must match the
+      // signed manifest. Unmanifested coordinator rooms (joined by code) skip
+      // this — the normal key-verification still applies after connecting.
+      if (manifest) await verifyOfferAgainstManifest(code, manifest);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "The host's identity does not match this room's manifest.");
+      link.stop();
+      return null;
+    }
+    const g = await GroupSession.joinAsMember({
+      room: r,
+      offer: code,
+      profile: { name: prefs.username, avatar: prefs.avatar, status: prefs.status },
+      answerSink: (answerCode) => link.publishAnswer(answerCode),
+    });
+    // Remember this room's manifest (if any) so rejoin + verification survive reloads.
+    if (manifest) {
+      const recovery = await loadRecovery();
+      await saveRecovery({
+        manifests: { ...recovery.manifests, [r]: manifest },
+        joinedRoomIds: [...new Set([...recovery.joinedRoomIds, r])],
+      });
+    }
+    return g;
+  }, [coordinator, prefs]);
+
+  /** Tear down the open group without leaving the app. Owners unregister the
+   *  room: the lease is revoked and members are told it went offline. */
   const dropGroup = useCallback(async () => {
     const g = group;
     setGroup(null);
+    setCoordHint(null);
     if (g) await g.closeRoom();
-  }, [group]);
+    // Owner of a community room: revoke the lease so the coordinator can tell
+    // members the room is honestly offline (never fake availability).
+    if (g?.role === "host" && g.snap.meta.isPublic && userRef.current) {
+      const client = coordRef.current;
+      const recovery = await loadRecovery();
+      if (client && recovery.manifests[g.room]) {
+        void client.unregister(g.room, userRef.current.signPriv);
+      }
+    }
+    dropCoordinatorSides();
+  }, [group, dropCoordinatorSides]);
 
   const leaveGroup = useCallback(() => {
     void dropGroup();
@@ -344,9 +551,10 @@ export default function PixelApp({
     toast("You left the room. Group keys deleted.");
   }, [dropGroup]);
 
-  // Member rejoin loop: connection dropped or initial connect timed out — re-fetch the
-  // host's latest offer and re-join with the SAME stable membership identity. Honors
-  // moderation stops (kicked/banned/full) and "not on roster" rejections: no retry fight.
+  // Member rejoin loop: connection dropped or initial connect timed out —
+  // re-fetch the host's latest offer and re-join with the SAME stable membership
+  // identity. Honors moderation stops (kicked/banned/full) and "not on roster"
+  // rejections: no retry fight. Community rooms rejoin via the coordinator.
   useEffect(() => {
     if (!group || group.role !== "member") return;
     if (groupApi.stopReason) return;
@@ -358,6 +566,15 @@ export default function PixelApp({
     const t = window.setTimeout(() => {
       void (async () => {
         try {
+          // Community room: the manifest's coordinator signaling is authoritative.
+          const known = (await loadRecovery()).manifests[dead.room];
+          if (known?.coordinator?.urls?.length) {
+            const g = await connectCommunity(dead.room, known);
+            if (g) { setGroup(g); return; }
+            if (groupRetry >= 2) { toast.error("Lost the room and couldn't reach its coordinator. Try again from the hub in a moment.", { duration: 8000 }); void dropGroup(); setStage("hub"); return; }
+            setGroupRetry((x) => x + 1);
+            return;
+          }
           const { code, closed } = await fetchSignal(dead.room, "offer");
           if (closed) { toast.error("The room was closed by its host.", { duration: 8000 }); void dropGroup(); setStage("hub"); return; }
           if (!code) {
@@ -378,7 +595,7 @@ export default function PixelApp({
     }, 7000);
     return () => { window.clearTimeout(t); regroupingRef.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group, group?.phase, group?.error, groupApi.stopReason, groupRetry, dropGroup]);
+  }, [group, group?.phase, group?.error, groupApi.stopReason, groupRetry, dropGroup, connectCommunity]);
 
   // One-click return to the last 1:1 room (kept across reloads).
   const rejoinLast = useCallback(async () => {
@@ -445,6 +662,11 @@ export default function PixelApp({
 
   const clearAll = () => {
     clearAllLocalData();
+    coordRef.current?.disconnect();
+    coordRef.current = null;
+    userRef.current = null;
+    dropCoordinatorSides();
+    setCoordState({ s: "idle" });
     clearChat();
     leavingRef.current = true;
     session?.close(true);
@@ -498,6 +720,8 @@ export default function PixelApp({
           onCreateGroup={() => setStage("group-create")}
           onHostGroupAgain={(room) => void hostGroup(undefined, room)}
           onJoinGroup={(room) => void joinGroup(room)}
+          onJoinGroupManifest={(room, manifest) => void joinGroup(room, manifest)}
+          probeRoom={(roomId) => probeQuick(coordinator(), roomId)}
           onJoinPeer={(room) => void openPeerRoom(room)}
           onReturnToGroup={() => setStage("group")}
           onLeaveGroup={leaveGroup}
@@ -537,6 +761,7 @@ export default function PixelApp({
       {stage === "group" && group && (
         <GroupView
           group={group} api={groupApi} prefs={prefs} setPrefs={setPrefs} muted={muted}
+          coordHint={coordHint}
           onLeave={leaveGroup}
           onBack={() => { setStage("hub"); setHubTab("groups"); }}
         />

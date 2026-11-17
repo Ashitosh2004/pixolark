@@ -11,25 +11,39 @@ import { b64url, fromB64url } from "./bytes";
 import { commitmentOf, type Identity } from "./crypto";
 
 const DB_NAME = "pixolark";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_KEYS = "keys";
 const STORE_HIST = "history";
+const STORE_RECOVERY = "recovery";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+/** Close any open connection (used before wiping the database). */
+function closeDb(): void {
+  const p = dbPromise;
+  dbPromise = null;
+  if (p) void p.then((db) => db.close()).catch(() => {});
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+  dbPromise = openPixolarkDb();
+  return dbPromise;
+}
+
+/** Single source of truth for opening the local database (also used by recovery.ts). */
+export function openPixolarkDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_KEYS)) db.createObjectStore(STORE_KEYS);
       if (!db.objectStoreNames.contains(STORE_HIST)) db.createObjectStore(STORE_HIST);
+      if (!db.objectStoreNames.contains(STORE_RECOVERY)) db.createObjectStore(STORE_RECOVERY);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error ?? new Error("IndexedDB unavailable"));
   });
-  return dbPromise;
 }
 
 function tx<T>(store: string, mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest): Promise<T> {
@@ -140,6 +154,18 @@ export async function clearHistoryLog(roomId: string): Promise<void> {
   try {
     await tx(STORE_HIST, "readwrite", (s) => s.delete(`log:${roomId}`));
   } catch { /* ignore */ }
+}
+
+/** Delete EVERYTHING local (history, keys, recovery registry) — Settings "Clear local data". */
+export async function clearAllLocalData(): Promise<void> {
+  closeDb(); // release the open connection or deleteDatabase blocks on it
+  await new Promise<void>((resolve) => {
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => resolve(); // someone else holds it; still move on honestly
+  });
+  try { localStorage.clear(); } catch { /* ignore */ }
 }
 
 function concatBytes(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {

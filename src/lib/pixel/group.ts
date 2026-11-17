@@ -245,7 +245,7 @@ export class GroupSession {
 
   // ---------- HOST: open / doorbell ----------
 
-  static async openAsHost(args: { room: string; meta?: Partial<GroupMeta>; saved?: GroupSnapshot | null; profile?: { name: string; avatar: Avatar; status: string } }): Promise<GroupSession> {
+  static async openAsHost(args: { room: string; meta?: Partial<GroupMeta>; saved?: GroupSnapshot | null; profile?: { name: string; avatar: Avatar; status: string }; identity?: Identity }): Promise<GroupSession> {
     const g = new GroupSession("host", args.room, GroupSession.freshSnapshot(args.room, args.meta));
     if (args.saved) {
       // Ownership recovery: same room id, epoch bumped so pre-outage keys are void.
@@ -254,7 +254,10 @@ export class GroupSession {
       g.snap = { ...s, epoch: s.epoch + 1, pinned: s.pinned, bans: s.bans, muted: s.muted, rules: s.rules, meta: { ...s.meta, ...args.meta } };
       for (const r of s.roster) g.savedRoles.set(r.id, r.role);
     }
-    g.identity = await createIdentity();
+    // A STABLE identity can be supplied for community rooms: the host commitment
+    // in the room's signed manifest must match the live WebRTC peer across
+    // restarts, so coordinator-listed rooms always reuse the recovery identity.
+    g.identity = args.identity ?? (await createIdentity());
     g.myId = await memberIdOf(g.identity.publicRaw);
     // The host's roster entry always reflects the CURRENT hosting identity.
     g.snap.roster = [
@@ -313,6 +316,13 @@ export class GroupSession {
       this.error = e?.message ?? "Could not open the room reception.";
       this.setPhase("failed");
     }
+  }
+
+  /** Adopt a connected member whose handshake the APP completed (coordinator
+   *  reception path). Same trust path as the ntfy doorbell: keys derive from
+   *  the member's hello, moderation/bans/full-cap all apply. */
+  adoptDoorbell(s: PeerSession): void {
+    void this.adopt(s);
   }
 
   /** Adopt a connected member (host side). */
@@ -973,7 +983,7 @@ export class GroupSession {
 
   // ---------- MEMBER: join / wiring ----------
 
-  static async joinAsMember(args: { room: string; offer: string; profile: { name: string; avatar: Avatar; status: string }; onHistory?: (from: string, limit: number) => Promise<HistoryItem[]> }): Promise<GroupSession> {
+  static async joinAsMember(args: { room: string; offer: string; profile: { name: string; avatar: Avatar; status: string }; onHistory?: (from: string, limit: number) => Promise<HistoryItem[]>; answerSink?: (code: string) => void }): Promise<GroupSession> {
     const gid = (await loadGroupIdentity(args.room)) ?? (await createGroupIdentity(args.room));
     const g = new GroupSession("member", args.room, GroupSession.placeholderSnapshot(args.room));
     g.groupIdentity = gid;
@@ -988,7 +998,10 @@ export class GroupSession {
       if (st === "secure") { void s.send({ t: "profile", name: args.profile.name, avatar: args.profile.avatar, status: args.profile.status }); g.armPresence(); }
       if (st === "closed" || st === "failed") { if (g.phase !== "closed" && g.phase !== "failed") g.setPhase("reconnecting"); }
     });
-    void publishSignal(args.room, "answer", s.localCode ?? "");
+    // Ship our answer back over whatever signaling brought us here: the app's
+    // coordinator relay for community rooms, the ntfy topic for legacy rooms.
+    if (args.answerSink) args.answerSink(s.localCode ?? "");
+    else void publishSignal(args.room, "answer", s.localCode ?? "");
     g.setPhase("joining");
     g.timers.push(window.setTimeout(() => {
       if (g.phase === "joining" || g.phase === "awaiting") {

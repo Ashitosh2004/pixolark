@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Shuffle, Upload, Download, Trash2, RefreshCw, ShieldCheck, ShieldAlert, Clock, ArchiveRestore, FileDown } from "lucide-react";
+import { Shuffle, Upload, Download, Trash2, RefreshCw, ShieldCheck, ShieldAlert, Clock, ArchiveRestore, FileDown, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { AVATAR_BGS, AVATAR_COLORS, randomAvatar, type PixelAvatar } from "@/lib/pixel/pixelart";
 import type { PeerSession } from "@/lib/pixel/session";
 import type { GroupSession } from "@/lib/pixel/group";
 import { DND_PRESETS, dndUntil, setDndUntil } from "@/lib/pixel/notifications";
 import { exportBackup, importBackup } from "@/lib/pixel/storage";
+import { exportRecovery, importRecovery } from "@/lib/pixel/recovery";
 import type { Prefs } from "@/lib/pixel/storage";
 import { cn } from "@/lib/utils";
 import { resizeImage } from "./MediaPicker";
@@ -149,6 +150,42 @@ export function SettingsPanel(p: SettingsProps) {
     } finally { setBackupBusy(false); }
   };
 
+  // ----- full recovery backup (identity keys + owned rooms) -----
+  const [recPass, setRecPass] = useState("");
+  const [recPass2, setRecPass2] = useState("");
+  const [recBusy, setRecBusy] = useState(false);
+
+  const doExportRecovery = async () => {
+    if (recPass.length < 8) { toast.error("Use at least 8 characters — this file carries your identity keys."); return; }
+    if (recPass !== recPass2) { toast.error("The two passphrases don't match."); return; }
+    setRecBusy(true);
+    try {
+      const backup = await exportRecovery(recPass);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `pixolark-recovery-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success("Recovery file downloaded. Without the passphrase your identity and rooms are unreadable — even by us: there is no server copy.");
+      setRecPass(""); setRecPass2("");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Export failed.");
+    } finally { setRecBusy(false); }
+  };
+
+  const doImportRecovery = async (f: File) => {
+    if (!recPass) { toast.error("Enter the recovery file's passphrase first."); return; }
+    setRecBusy(true);
+    try {
+      const payload = await importRecovery(JSON.parse(await f.text()), recPass);
+      if (payload.identity) toast.success("Identity and rooms restored on this device.");
+      else toast.success("Backup restored (no identity was included in it).");
+      p.onBackupImported();
+      setRecPass(""); setRecPass2("");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Restore failed.");
+    } finally { setRecBusy(false); }
+  };
+
   const up = <K extends keyof Prefs>(k: K, v: Prefs[K]) => p.setPrefs((x) => ({ ...x, [k]: v }));
   const TABS: [Tab, string][] = [["profile", "Profile"], ["privacy", "Privacy"], ["app", "Theme & sound"], ["security", "Security"], ["data", "Data"], ["diag", "Diagnostics"], ["keys", "Shortcuts"]];
 
@@ -265,6 +302,25 @@ export function SettingsPanel(p: SettingsProps) {
                   <label className="pixel-btn pixel-btn-sm cursor-pointer" >
                     <ArchiveRestore size={12} /> Restore from backup
                     <input type="file" accept="application/json" className="hidden" disabled={backupBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void doImportBackup(f); e.target.value = ""; }} />
+                  </label>
+                </div>
+              </div>
+
+              <div className="w-full border-2 border-dashed border-border p-3">
+                <span className="pixel-label"><KeyRound size={12} className="inline" /> Full recovery backup (identity + owned rooms)</span>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Everything needed to BE you again on a cleared browser or another device: your identity keys, the room-manifest signing key, owned room manifests and preferences — encrypted with a passphrase (PBKDF2-SHA-256, 600k iterations + AES-GCM).
+                  Store it safely: whoever holds this file and its passphrase holds your identity.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input className="pixel-input w-44" type="password" placeholder="Passphrase (8+ chars)" value={recPass} onChange={(e) => setRecPass(e.target.value)} autoComplete="new-password" />
+                  <input className="pixel-input w-44" type="password" placeholder="Repeat passphrase" value={recPass2} onChange={(e) => setRecPass2(e.target.value)} autoComplete="new-password" />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button className="pixel-btn pixel-btn-sm pixel-btn-primary" disabled={recBusy} onClick={() => void doExportRecovery()}><Download size={12} /> Export recovery file</button>
+                  <label className="pixel-btn pixel-btn-sm cursor-pointer">
+                    <ArchiveRestore size={12} /> Restore recovery file
+                    <input type="file" accept="application/json" className="hidden" disabled={recBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void doImportRecovery(f); e.target.value = ""; }} />
                   </label>
                 </div>
               </div>

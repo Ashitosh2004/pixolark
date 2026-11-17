@@ -1,0 +1,183 @@
+{
+  "v": 1,
+  "section": "states/maharashtra",
+  "generatedAt": 1794858354060,
+  "rooms": [
+    {
+      "roomId": "426053",
+      "name": "Maharashtra Adda",
+      "desc": "Maharashtra regional lounge",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "iwiignq2P5CK5HJraIyD4WEmMrZWou6lWfme1lCOhN2GQ2GXE6VUG5kR_LuHQ5XmslnyQv2h8dPcZ4GrWMN41w"
+    },
+    {
+      "roomId": "426245",
+      "name": "Kolhapur Pixels",
+      "desc": "Kolhapur city room",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "Kolhapur",
+      "languages": [
+        "Marathi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "zLpdBIz9qYcBvcJZvxevuyYe4HpcEDVwMLyoaX9ytWImEjXrY8W_Jy8nu76IqdQdUQVPipY2Cn61q3l1pSPuWg"
+    },
+    {
+      "roomId": "426848",
+      "name": "Pune Pixels",
+      "desc": "Pune city room",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "Pune",
+      "languages": [
+        "Marathi",
+        "English"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "7d3BSLqsXgZhPc9TFbOZSUvAL-Y5cEKmt1kK47jucpB5-8MeF1P9npyd4OPlUQ0FyN7N2sn68cKOT8IY4lrJvw"
+    },
+    {
+      "roomId": "427034",
+      "name": "Mumbai Pixels",
+      "desc": "Mumbai city room",
+      "type": "public",
+      "category": "General Chat",
+      "region": "India",
+      "subRegion": "Maharashtra",
+      "city": "Mumbai",
+      "languages": [
+        "Marathi",
+        "Hindi"
+      ],
+      "owner": {
+        "id": "05a32739ba5616543638",
+        "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+      },
+      "host": {
+        "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+      },
+      "coordinator": {
+        "urls": []
+      },
+      "capabilities": {
+        "media": true,
+        "stickers": true,
+        "history": false,
+        "slowMode": false,
+        "approval": false
+      },
+      "invitation": {
+        "method": "open"
+      },
+      "policy": {
+        "recovery": "owner-only",
+        "coOwners": []
+      },
+      "createdAt": 1794858278145,
+      "updatedAt": 1794858278145,
+      "expiresAt": 1797450278145,
+      "v": 1,
+      "alg": "ES256-P256",
+      "signature": "6XSSuBl-8d4eKcuxUOX6hVokYbziZ_vkrhwuxeGcWSJsZT4U5_4YC7CcGh66_3cbvvSeg9X2ow3TtcH9oW9WIQ"
+    }
+  ]
+}

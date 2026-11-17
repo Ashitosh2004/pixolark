@@ -1,0 +1,44 @@
+{
+  "roomId": "427792",
+  "name": "Karnataka Kone",
+  "desc": "Karnataka regional lounge",
+  "type": "public",
+  "category": "General Chat",
+  "region": "India",
+  "subRegion": "Karnataka",
+  "city": "",
+  "languages": [
+    "Kannada",
+    "English"
+  ],
+  "owner": {
+    "id": "05a32739ba5616543638",
+    "signingKey": "BKisxk5NJHYYiwDGXnSh-fDq3BhCcgEa0PAWytg7v_6INKdDGmnWdkDjp8Qh6Y7AJwXpDmP3-5rRo_PrvP6Uhbg"
+  },
+  "host": {
+    "commitment": "83968a2e93f3d35cac852e0bd5104ab8"
+  },
+  "coordinator": {
+    "urls": []
+  },
+  "capabilities": {
+    "media": true,
+    "stickers": true,
+    "history": false,
+    "slowMode": false,
+    "approval": false
+  },
+  "invitation": {
+    "method": "open"
+  },
+  "policy": {
+    "recovery": "owner-only",
+    "coOwners": []
+  },
+  "createdAt": 1794858278145,
+  "updatedAt": 1794858278145,
+  "expiresAt": 1797450278145,
+  "v": 1,
+  "alg": "ES256-P256",
+  "signature": "xMjjsQGSlPY4JE1zVdWWUrOzwS9DE9UAZ5BTicQWbQCm44kToNHhoJXQT-ViiLBgEFz-YbP5nVhxvxdKrGcKpA"
+}

@@ -24,6 +24,13 @@ dist-ssr
 .env
 .env.*
 
+# Owner key material & seed identities — SECRETS, never commit
+keys/
+tools/seeds/
+
+# Generated copy of the room directory for local dev serving
+public/room-directory/
+
 # Vercel
 .vercel/
 
