@@ -20,6 +20,10 @@
  * - Replay protection: receivers track the highest seq per (sender, epoch); the frame's
  *   seq is in the AAD, and seq <= lastSeq is rejected. A bounded gap window limits
  *   ratcheting work.
+ * - Gap recovery: when a frame arrives with a gap, the skipped positions' message keys
+ *   are retained (bounded); the original sender can then replay the missed SEALED frames
+ *   verbatim and the receiver opens them with openRecoveredMessage — no plaintext ever
+ *   re-enters the wire, and skipped keys are single-use.
  *
  * Honest limits (docs/ARCHITECTURE.md): no TreeKEM/post-compromise security, O(N)
  * distribution per membership change (fine for small groups), member authentication chains
@@ -93,8 +97,14 @@ export async function sealGroupMessage(
   return { wire, next: { epoch: chain.epoch, gen: chain.gen, chainKey: b64url(nk), seq: chain.seq + 1 } };
 }
 
-/** Receiver's view of one sender's chain: where we entered + how far we've read. */
-export interface PeerChain { epoch: number; gen: number; chainKey: string; baseSeq: number; lastSeq: number }
+/** A message key for a SKIPPED chain position (a gap), retained so the sender can
+ *  replay the missed sealed frames later. Bound to the epoch/gen it was derived in. */
+export interface SkippedKey { seq: number; epoch: number; gen: number; mk: string }
+
+/** Receiver's view of one sender's chain. INVARIANT: chainKey is the chain key at
+ *  position lastSeq + 1 (the next unread message); baseSeq is only the entry point
+ *  we were first distributed (kept for diagnostics). */
+export interface PeerChain { epoch: number; gen: number; chainKey: string; baseSeq: number; lastSeq: number; skipped?: SkippedKey[] }
 
 export function peerChainFromDistribute(epoch: number, gen: number, chainKey: string, baseSeq: number): PeerChain {
   return { epoch, gen, chainKey, baseSeq, lastSeq: baseSeq - 1 };
@@ -105,24 +115,59 @@ export interface GroupWire { from: string; epoch: number; gen: number; seq: numb
 
 const MAX_RATCHET_STEPS = 2000;
 
-/** Opens a group frame with the sender's distributed chain state; returns the advanced state. */
+/** Bounded retention of skipped message keys per sender: gaps wider than this are
+ *  honestly unrecoverable (older positions' keys are dropped, newest kept). */
+export const MAX_SKIPPED_KEPT = 32;
+
+/** Opens a group frame with the sender's distributed chain state; returns the advanced state.
+ *  Walking forward over a gap retains the skipped positions' message keys (bounded) so
+ *  those frames can be recovered later via openRecoveredMessage. */
 export async function openGroupMessage(
   w: GroupWire, roomId: string, peer: PeerChain,
 ): Promise<{ header: any; body: Uint8Array<ArrayBuffer>; next: PeerChain }> {
   if (w.epoch !== peer.epoch || w.gen !== peer.gen || w.seq <= peer.lastSeq) throw new Error("Replayed, stale or out-of-order group message");
-  const steps = w.seq - peer.baseSeq;
+  const steps = w.seq - peer.lastSeq - 1; // positions between chainKey (lastSeq+1) and w.seq
   if (steps < 0 || steps > MAX_RATCHET_STEPS) throw new Error("Group message too far ahead of our chain position");
   const salt = await roomSalt(roomId);
   let ck = fromB64url(peer.chainKey);
-  for (let i = 0; i < steps; i++) ck = await hkdfBits(ck, salt, `chain|${w.epoch}`);
+  const skipped: SkippedKey[] = [];
+  for (let i = 0; i < steps; i++) {
+    const s = peer.lastSeq + 1 + i;
+    // ck is the chain key at position s: keep its message key before advancing.
+    skipped.push({ seq: s, epoch: w.epoch, gen: w.gen, mk: b64url(await hkdfBits(ck, salt, `msg|${w.epoch}|${w.from}|${s}`)) });
+    ck = await hkdfBits(ck, salt, `chain|${w.epoch}`);
+  }
   const mk = await aesKey(await hkdfBits(ck, salt, `msg|${w.epoch}|${w.from}|${w.seq}`));
   const raw = fromB64url(w.sealed);
   if (raw.length < 12 + 16) throw new Error("Group frame too short");
   const aad = te.encode(`g|${roomId}|${w.from}|${w.epoch}|${w.gen}|${w.seq}`);
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12), additionalData: aad }, mk, raw.slice(12));
   const { header, body } = unpackEnvelope(new Uint8Array(pt));
-  const next: PeerChain = { epoch: w.epoch, gen: w.gen, chainKey: b64url(ck), baseSeq: peer.baseSeq, lastSeq: w.seq };
+  // Advance one step past the opened frame so chainKey stays at position lastSeq+1.
+  const next: PeerChain = {
+    epoch: w.epoch, gen: w.gen,
+    chainKey: b64url(await hkdfBits(ck, salt, `chain|${w.epoch}`)),
+    baseSeq: peer.baseSeq, lastSeq: w.seq,
+  };
+  if (skipped.length) next.skipped = skipped.slice(-MAX_SKIPPED_KEPT);
   return { header, body, next };
+}
+
+/** Decrypts a frame the receiver skipped earlier, using a retained skipped key.
+ *  Pure: does NOT advance any chain state (the receiver is already past this position).
+ *  The frame must be the sender's ORIGINAL sealed frame (AAD binds room/from/epoch/gen/seq),
+ *  so a forged or substituted frame fails authentication. */
+export async function openRecoveredMessage(
+  w: GroupWire, roomId: string, peer: PeerChain,
+): Promise<{ header: any; body: Uint8Array<ArrayBuffer> }> {
+  const hit = (peer.skipped ?? []).find((k) => k.seq === w.seq && k.epoch === w.epoch && k.gen === w.gen);
+  if (!hit) throw new Error("No retained key for this recovered group frame");
+  const mk = await aesKey(fromB64url(hit.mk));
+  const raw = fromB64url(w.sealed);
+  if (raw.length < 12 + 16) throw new Error("Group frame too short");
+  const aad = te.encode(`g|${roomId}|${w.from}|${w.epoch}|${w.gen}|${w.seq}`);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12), additionalData: aad }, mk, raw.slice(12));
+  return unpackEnvelope(new Uint8Array(pt));
 }
 
 /** Seals an arbitrary payload so ONLY the holder of targetPublicRaw can open it. */

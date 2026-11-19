@@ -7,7 +7,7 @@
  *
  * Frames over each pairwise channel (all channel-encrypted as today):
  * - ctrl: {t:"g-snap"}, {t:"g-key"}, {t:"g-msg"}, {t:"g-read"}, {t:"g-pres"},
- *         {t:"g-note"}, {t:"g-req"}, {t:"g-hist"}, {t:"profile"}
+ *         {t:"g-note"}, {t:"g-req"}, {t:"g-hist"}, {t:"g-recover"}, {t:"profile"}
  * - content: sender-key-sealed GroupWire carrying the same envelope shapes as 1:1
  *   ({t:"msg"}, {t:"file-start"|"file-chunk"|"file-end"|"file-cancel"}, plus group
  *   extensions {t:"g-react"|"g-edit"|"g-del"}), so rendering/file/sticker logic is reused.
@@ -27,7 +27,7 @@
  */
 import { b64url, fromB64url } from "./bytes";
 import { createIdentity, type Identity } from "./crypto";
-import { memberIdOf, newSenderChain, openFromMember, openGroupMessage, peerChainFromDistribute, sealGroupMessage, sealToMember, type GroupWire, type PeerChain, type SenderChain } from "./groupcrypto";
+import { memberIdOf, MAX_SKIPPED_KEPT, newSenderChain, openFromMember, openGroupMessage, openRecoveredMessage, peerChainFromDistribute, sealGroupMessage, sealToMember, type GroupWire, type PeerChain, type SenderChain, type SkippedKey } from "./groupcrypto";
 import { asSessionIdentity, loadGroupIdentity, createGroupIdentity, type GroupIdentity } from "./idb";
 import { publishSignal, subscribeSignal, ROOM_CLOSED } from "./signaling";
 import { publishBeacon, beaconOf, BEACON_INTERVAL_MS, type RoomBeacon } from "./discovery";
@@ -198,6 +198,14 @@ export class GroupSession {
   private peerChains = new Map<string, PeerChain>();
   private sentTo = new Set<string>(); // members my current chain was distributed to (this epoch)
   private msgOwners = new Map<string, string>(); // content id -> original sender (edit/delete authorship)
+  /** My sealed group frames, verbatim ("surviving encrypted copies"): a member who
+   *  skipped frames can ask their original sender to replay them. Bounded, in-memory
+   *  only — a page reload re-enters chains at the current position by design. */
+  private sentLog: Array<{ wire: GroupWire; ts: number }> = [];
+  /** Dedupe for replayed recovered frames: "from|epoch|gen|seq". */
+  private seenRecovery = new Set<string>();
+  /** Recovery requests awaiting the sender's response, for the honest "couldn't recover" note. */
+  private pendingRecover = new Map<string, { want: Set<number>; got: Set<number>; timer: number; name: string }>();
   private outbox: Array<{ header: unknown; body?: Uint8Array | undefined }> = [];
   private viewing = true;
   private timers: number[] = [];
@@ -470,6 +478,17 @@ export class GroupSession {
         else {
           const tc = this.conns.get(target);
           if (tc) void tc.session.send({ t: "g-hist", from, sealed: header.sealed });
+        }
+        break;
+      }
+      case "g-recover": {
+        // Relay a sealed gap-recovery envelope to its target, verbatim (opaque to the host).
+        const target = String(header.to ?? "");
+        if (target === this.myId) await this.onRecoverEnvelope(from, header.sealed);
+        else {
+          const tc = this.conns.get(target);
+          const entry = this.rosterEntry(target);
+          if (tc && entry && !entry.pending) void tc.session.send({ t: "g-recover", to: target, from, sealed: header.sealed });
         }
         break;
       }
@@ -834,6 +853,7 @@ export class GroupSession {
     }
     const { wire, next } = await sealGroupMessage(this.myChain, this.room, this.myId, header, body);
     this.myChain = next;
+    this.pushSentLog(wire);
     if (this.role === "host") {
       this.relayWire(wire, this.myId, header["t"] === "file-chunk");
     } else {
@@ -856,6 +876,13 @@ export class GroupSession {
     if (sender.pending) return;
     try {
       const { header, body, next } = await openGroupMessage(w, this.room, peer);
+      if (next.skipped?.length) {
+        // Gap: keep the skipped positions' keys (merged with still-unrecovered ones)
+        // and ask the original sender to replay their surviving sealed frames.
+        const prior = (peer.skipped ?? []).filter((k) => !next.skipped!.some((n) => n.seq === k.seq && n.epoch === k.epoch && n.gen === k.gen));
+        next.skipped = [...prior, ...next.skipped].slice(-MAX_SKIPPED_KEPT);
+        void this.requestRecovery(w.from, w.epoch, w.gen, next.skipped);
+      }
       this.peerChains.set(w.from, next);
       this.applyContent(w.from, header, body);
     } catch (e: any) {
@@ -864,8 +891,110 @@ export class GroupSession {
     }
   }
 
+  // ---------- gap recovery (skipped sealed frames) ----------
+
+  private pushSentLog(wire: GroupWire): void {
+    this.sentLog.push({ wire, ts: Date.now() });
+    if (this.sentLog.length > 64) this.sentLog.splice(0, this.sentLog.length - 64);
+  }
+
+  private markSeen(key: string): void {
+    this.seenRecovery.add(key);
+    if (this.seenRecovery.size > 512) {
+      const oldest = this.seenRecovery.values().next();
+      if (!oldest.done) this.seenRecovery.delete(oldest.value);
+    }
+  }
+
+  /** Ask the original sender (pairwise-sealed) to replay the sealed frames we skipped. */
+  private async requestRecovery(senderId: string, epoch: number, gen: number, keys: SkippedKey[]): Promise<void> {
+    const sender = this.rosterEntry(senderId);
+    if (!sender || sender.pending || !this.identity || this.closed) return;
+    const seqs = [...new Set(keys.filter((k) => k.epoch === epoch && k.gen === gen).map((k) => k.seq))].sort((a, b) => a - b).slice(-64);
+    if (!seqs.length) return;
+    const reqId = `${senderId}|${epoch}|${gen}`;
+    const existing = this.pendingRecover.get(reqId);
+    if (existing) { for (const s of seqs) existing.want.add(s); return; }
+    try {
+      const sealed = await sealToMember(this.identity, fromB64url(sender.pub), this.room, { kind: "recover-req", epoch, gen, seqs });
+      if (this.role === "host") {
+        const c = this.conns.get(senderId);
+        if (!c) return;
+        void c.session.send({ t: "g-recover", to: senderId, from: this.myId, sealed }).catch(() => {});
+      } else {
+        await this.session?.send({ t: "g-recover", to: senderId, from: this.myId, sealed }).catch(() => {});
+      }
+      this.pendingRecover.set(reqId, {
+        want: new Set(seqs), got: new Set<number>(), name: sender.name,
+        timer: window.setTimeout(() => this.finishRecovery(reqId), 8000),
+      });
+    } catch { /* recovery requests are best-effort */ }
+  }
+
+  /** Honest, single note when a recovery request could not be fully served. */
+  private finishRecovery(reqId: string): void {
+    const entry = this.pendingRecover.get(reqId);
+    if (!entry) return;
+    this.pendingRecover.delete(reqId);
+    const missing = [...entry.want].filter((s) => !entry.got.has(s)).length;
+    if (missing) this.note("sync", `${missing} earlier message${missing === 1 ? "" : "s"} from ${entry.name} couldn't be recovered.`);
+  }
+
+  /** Handles both directions of the sealed recovery exchange (request and response). */
+  private async onRecoverEnvelope(fromId: string, sealed: string): Promise<void> {
+    if (!this.identity || this.closed) return;
+    const entry = this.rosterEntry(fromId);
+    if (!entry || entry.pending) return;
+    let payload: any;
+    try {
+      payload = await openFromMember(this.identity, fromB64url(entry.pub), this.room, sealed);
+    } catch { return; }
+    if (payload?.kind === "recover-req") {
+      // I am the original sender: replay MY surviving sealed frames for the asked seqs.
+      const epoch = Number(payload.epoch);
+      const gen = Number(payload.gen);
+      const seqs: number[] = Array.isArray(payload.seqs) ? (payload.seqs as unknown[]).map(Number).filter((n: number) => Number.isInteger(n)) : [];
+      const frames = this.sentLog
+        .filter((e) => e.wire.from === this.myId && e.wire.epoch === epoch && e.wire.gen === gen && seqs.includes(e.wire.seq))
+        .slice(0, 64)
+        .map((e) => e.wire)
+        .sort((a, b) => a.seq - b.seq);
+      if (!frames.length) return; // nothing retained: the requester's honest note fires
+      try {
+        const resp = await sealToMember(this.identity, fromB64url(entry.pub), this.room, { kind: "recover-resp", epoch, gen, frames });
+        if (this.role === "host") {
+          const c = this.conns.get(fromId);
+          if (c) void c.session.send({ t: "g-recover", to: fromId, from: this.myId, sealed: resp }).catch(() => {});
+        } else {
+          await this.session?.send({ t: "g-recover", to: fromId, from: this.myId, sealed: resp }).catch(() => {});
+        }
+      } catch { /* best-effort */ }
+      return;
+    }
+    if (payload?.kind === "recover-resp") {
+      // I am the requester: replay in order; only ordinary messages are re-emitted.
+      const frames: GroupWire[] = Array.isArray(payload.frames) ? payload.frames : [];
+      const reqId = `${fromId}|${Number(payload.epoch)}|${Number(payload.gen)}`;
+      for (const wire of frames) {
+        if (wire.from !== fromId) continue; // a response may only contain the sender's own frames
+        const key = `${wire.from}|${wire.epoch}|${wire.gen}|${wire.seq}`;
+        if (this.seenRecovery.has(key)) continue;
+        const peer = this.peerChains.get(wire.from);
+        if (!peer) continue;
+        try {
+          const { header, body } = await openRecoveredMessage(wire, this.room, peer);
+          this.markSeen(key);
+          // Consume the retained key: skipped keys are single-use, like every ratchet key.
+          peer.skipped = (peer.skipped ?? []).filter((k) => !(k.seq === wire.seq && k.epoch === wire.epoch && k.gen === wire.gen));
+          this.pendingRecover.get(reqId)?.got.add(wire.seq);
+          if (header?.t === "msg") this.applyContent(wire.from, header, body, true);
+        } catch { /* unverifiable or unknown frame: ignored */ }
+      }
+    }
+  }
+
   /** Turn a decrypted content envelope into a GroupMessage event (both roles). */
-  private applyContent(from: string, header: any, body?: Uint8Array): void {
+  private applyContent(from: string, header: any, body?: Uint8Array, recovered = false): void {
     const sender = this.rosterEntry(from);
     const name = sender?.name ?? "Member";
     switch (header?.t) {
@@ -882,6 +1011,7 @@ export class GroupSession {
           stickerLib: typeof header.stickerLib === "string" ? header.stickerLib.slice(0, 40) : undefined,
           replyTo: header.replyTo, forwarded: !!header.forwarded,
           ts: Date.now(), reactions: {},
+          recovered: recovered || undefined,
         };
         this.rememberOwner(m.id, from);
         this.em.emit("message", m);
@@ -1071,6 +1201,11 @@ export class GroupSession {
         await this.onKeyEnvelope(String(header.from ?? ""), header.sealed);
         break;
       }
+      case "g-recover": {
+        if (header.to !== this.myId) return;
+        await this.onRecoverEnvelope(String(header.from ?? ""), header.sealed);
+        break;
+      }
       case "g-msg": {
         const wire = header.wire as GroupWire | undefined;
         if (wire) await this.onGroupWire(wire);
@@ -1215,6 +1350,10 @@ export class GroupSession {
     this.session = null;
     this.stopBeacons();
     this.clearTimers();
+    for (const e of this.pendingRecover.values()) window.clearTimeout(e.timer);
+    this.pendingRecover.clear();
+    this.seenRecovery.clear();
+    this.sentLog = [];
     this.closed = true;
     this.setPhase("closed");
   }
@@ -1236,6 +1375,7 @@ export class GroupSession {
       "Encryption": this.isSecure() ? `Sender-key chains active (epoch ${this.snap.epoch})` : "Keys not established",
       "My chain": this.myChain ? `epoch ${this.myChain.epoch}, gen ${this.myChain.gen}, next seq ${this.myChain.seq}` : "none",
       "Peer keys received": String(this.peerChains.size),
+      "Sent frames kept": String(this.sentLog.length),
       "Roster": `${this.snap.roster.length} member(s)`,
       "Epoch": String(this.snap.epoch),
     };

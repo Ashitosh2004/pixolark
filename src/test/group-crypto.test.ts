@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createIdentity } from "@/lib/pixel/crypto";
 import {
+  MAX_SKIPPED_KEPT,
   derivePairwiseBits,
   memberIdOf,
   newSenderChain,
   openFromMember,
   openGroupMessage,
+  openRecoveredMessage,
   peerChainFromDistribute,
   sealGroupMessage,
   sealToMember,
+  type GroupWire,
 } from "@/lib/pixel/groupcrypto";
 
 const ROOM = "PXROOM-TEST";
@@ -117,5 +120,99 @@ describe("Group sender-key crypto", () => {
     expect(ab).toEqual(ba);
     const other = await derivePairwiseBits(a, b.publicRaw, ROOM2);
     expect(other).not.toEqual(ab);
+  });
+
+  it("opens a long run of consecutive messages without key drift (regression: 3rd message)", async () => {
+    const a = await createIdentity();
+    const aid = await memberIdOf(a.publicRaw);
+    let chain = newSenderChain(1);
+    const ck0 = chain.chainKey;
+    const wires: GroupWire[] = [];
+    for (let i = 0; i < 8; i++) {
+      const r = await sealGroupMessage(chain, ROOM, aid, { t: "msg", n: i });
+      wires.push(r.wire);
+      chain = r.next;
+    }
+    let peer = peerChainFromDistribute(1, 0, ck0, 0);
+    for (const [i, w] of wires.entries()) {
+      const opened = await openGroupMessage(w, ROOM, peer);
+      peer = opened.next;
+      expect(opened.header.n).toBe(i);
+    }
+  });
+
+  it("retains skipped keys over a gap and recovers the missed frames verbatim", async () => {
+    const a = await createIdentity();
+    const aid = await memberIdOf(a.publicRaw);
+    let chain = newSenderChain(1);
+    const ck0 = chain.chainKey;
+    const wires: GroupWire[] = [];
+    for (let i = 0; i < 4; i++) {
+      const r = await sealGroupMessage(chain, ROOM, aid, { t: "msg", n: i });
+      wires.push(r.wire);
+      chain = r.next;
+    }
+    const peer = peerChainFromDistribute(1, 0, ck0, 0);
+    // Only the LAST of four frames arrives: the receiver skips 0..2 and ratchets forward.
+    const late = await openGroupMessage(wires[3]!, ROOM, peer);
+    expect(late.next.skipped?.map((k) => k.seq)).toEqual([0, 1, 2]);
+    // The original sender replays the missed frames verbatim; they open with the
+    // retained keys and touch no chain state.
+    for (const w of wires.slice(0, 3)) {
+      const rec = await openRecoveredMessage(w, ROOM, late.next);
+      expect(rec.header.n).toBe(w.seq);
+    }
+    // The ratchet is untouched by recovery: the NEXT ordinary frame still opens.
+    const later = await sealGroupMessage(chain, ROOM, aid, { t: "msg", n: 4 });
+    const next = await openGroupMessage(later.wire, ROOM, late.next);
+    expect(next.header.n).toBe(4);
+  });
+
+  it("recovered frames are authenticated, sender-bound and key-bound", async () => {
+    const a = await createIdentity();
+    const aid = await memberIdOf(a.publicRaw);
+    let chain = newSenderChain(1);
+    const ck0 = chain.chainKey;
+    const s0 = await sealGroupMessage(chain, ROOM, aid, { t: "msg", n: 0 });
+    const s1 = await sealGroupMessage(s0.next, ROOM, aid, { t: "msg", n: 1 });
+    const s2 = await sealGroupMessage(s1.next, ROOM, aid, { t: "msg", n: 2 });
+    const peer = peerChainFromDistribute(1, 0, ck0, 0);
+    const late = await openGroupMessage(s2.wire, ROOM, peer); // skips 0..1
+    // Tampered ciphertext: rejected.
+    const tampered = { ...s0.wire, sealed: s0.wire.sealed.slice(0, -4) + (s0.wire.sealed.endsWith("A") ? "BBBB" : "AAAA") };
+    await expect(openRecoveredMessage(tampered, ROOM, late.next)).rejects.toThrow();
+    // A frame claimed from another sender: rejected (AAD binds the sender).
+    const other = await createIdentity();
+    const forged = { ...s0.wire, from: await memberIdOf(other.publicRaw) };
+    await expect(openRecoveredMessage(forged, ROOM, late.next)).rejects.toThrow();
+    // A fresh distribute holds no skipped keys: recovery refused.
+    await expect(openRecoveredMessage(s0.wire, ROOM, peerChainFromDistribute(1, 0, ck0, 0))).rejects.toThrow(/No retained key/);
+    // Retained keys are epoch/gen-bound: a gen-1 re-announce of the same seq doesn't match.
+    const gen1 = newSenderChain(1, 1);
+    const g1 = (await sealGroupMessage(gen1, ROOM, aid, { t: "msg", n: 0 })).wire;
+    await expect(openRecoveredMessage(g1, ROOM, late.next)).rejects.toThrow(/No retained key/);
+  });
+
+  it("caps retained skipped keys, keeping the newest chain positions", async () => {
+    const a = await createIdentity();
+    const aid = await memberIdOf(a.publicRaw);
+    let chain = newSenderChain(1);
+    const ck0 = chain.chainKey;
+    const wires: GroupWire[] = [];
+    for (let i = 0; i <= 40; i++) {
+      const r = await sealGroupMessage(chain, ROOM, aid, { t: "msg", n: i });
+      wires.push(r.wire);
+      chain = r.next;
+    }
+    const peer = peerChainFromDistribute(1, 0, ck0, 0);
+    // Frames 0..39 are skipped; only the newest MAX_SKIPPED_KEPT positions are retained.
+    const late = await openGroupMessage(wires[40]!, ROOM, peer);
+    expect(late.next.skipped?.length).toBe(MAX_SKIPPED_KEPT);
+    expect(late.next.skipped?.[0]?.seq).toBe(40 - MAX_SKIPPED_KEPT);
+    expect(late.next.skipped?.at(-1)?.seq).toBe(39);
+    // The retained range recovers; anything older is honestly unrecoverable.
+    expect((await openRecoveredMessage(wires[8]!, ROOM, late.next)).header.n).toBe(8);
+    expect((await openRecoveredMessage(wires[39]!, ROOM, late.next)).header.n).toBe(39);
+    await expect(openRecoveredMessage(wires[7]!, ROOM, late.next)).rejects.toThrow(/No retained key/);
   });
 });
