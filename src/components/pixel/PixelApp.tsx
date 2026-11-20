@@ -44,6 +44,8 @@ function communityMetaOf(g: GroupSession) {
     type: "public" as const,
     category: m.cat,
     region: m.region || "",
+    subRegion: m.subRegion || "",
+    city: m.city || "",
     languages: m.lang ? [m.lang] : ["English"],
   };
 }

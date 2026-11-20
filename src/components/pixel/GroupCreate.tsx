@@ -12,10 +12,7 @@ import { Loader } from "./ui";
 
 const STEPS = ["Basics", "Community", "Privacy"] as const;
 
-const REGION_OPTIONS = Object.entries(REGIONS).flatMap(([key, node]) => [
-  { value: key, label: node.name },
-  ...(node.children ?? []).map((c) => ({ value: `${key} · ${c}`, label: `${node.name} — ${c}` })),
-]);
+const COUNTRY_OPTIONS = Object.entries(REGIONS).map(([key, node]) => ({ value: key, label: node.name }));
 
 export function GroupCreate({ busy, onCreate, onCancel }: {
   busy: boolean;
@@ -26,7 +23,9 @@ export function GroupCreate({ busy, onCreate, onCancel }: {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [cat, setCat] = useState<string>("General Chat");
-  const [region, setRegion] = useState("International");
+  const [country, setCountry] = useState("International");
+  const [subRegion, setSubRegion] = useState("");
+  const [city, setCity] = useState("");
   const [lang, setLang] = useState<string>("English");
   const [isPublic, setIsPublic] = useState(true);
   const [approval, setApproval] = useState(false);
@@ -35,10 +34,14 @@ export function GroupCreate({ busy, onCreate, onCancel }: {
 
   const canNext = useMemo(() => step !== 0 || name.trim().length >= 2, [step, name]);
 
+  // Cascading region picks: country → state → city (each level resets the ones below).
+  const states = REGIONS[country]?.children ?? [];
+  const cities = subRegion ? REGIONS[country]?.cities?.[subRegion] ?? [] : [];
+
   const submit = () => onCreate({
     name: name.trim().slice(0, 48),
     desc: desc.trim().slice(0, 160),
-    cat, region, lang,
+    cat, region: country, subRegion, city, lang,
     isPublic, approval: !isPublic ? approval : false,
     historyShare, cap: Math.max(2, Math.min(24, cap)),
   });
@@ -85,9 +88,9 @@ export function GroupCreate({ busy, onCreate, onCancel }: {
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1">
-                <span className="pixel-label">Region</span>
-                <select className="pixel-input" value={region} onChange={(e) => setRegion(e.target.value)}>
-                  {REGION_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                <span className="pixel-label">Country</span>
+                <select className="pixel-input" value={country} onChange={(e) => { setCountry(e.target.value); setSubRegion(""); setCity(""); }}>
+                  {COUNTRY_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </label>
               <label className="flex flex-col gap-1">
@@ -96,6 +99,24 @@ export function GroupCreate({ busy, onCreate, onCancel }: {
                   {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </label>
+              {states.length > 0 && (
+                <label className="flex flex-col gap-1">
+                  <span className="pixel-label">State / region</span>
+                  <select className="pixel-input" value={subRegion} onChange={(e) => { setSubRegion(e.target.value); setCity(""); }}>
+                    <option value="">(any)</option>
+                    {states.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+              )}
+              {cities.length > 0 && (
+                <label className="flex flex-col gap-1">
+                  <span className="pixel-label">City</span>
+                  <select className="pixel-input" value={city} onChange={(e) => setCity(e.target.value)}>
+                    <option value="">(any)</option>
+                    {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+              )}
             </div>
           </>
         )}

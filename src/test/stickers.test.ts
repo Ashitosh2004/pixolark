@@ -7,12 +7,15 @@ import { resolveIncomingSticker, searchStickers } from "@/lib/pixel/stickerlib";
 import { STICKER_LIB_VERSION } from "@/lib/pixel/sticker-version";
 
 const catalog = buildCatalog();
-const TARGETS: Record<string, number> = { love: 100, cute: 120, memes: 120, animals: 120, couple: 100, friends: 100, reactions: 100, daily: 80, gaming: 80, festivals: 80 };
+const TARGETS: Record<string, number> = {
+  love: 100, cute: 120, memes: 120, animals: 120, couple: 100, friends: 100, reactions: 100, daily: 80, gaming: 80, festivals: 80,
+  food: 80, greetings: 80, celebration: 80, india: 80, nature: 80, space: 80, sports: 80, music: 80, travel: 80, study: 80,
+};
 
 describe("sticker library", () => {
-  it("has at least 1,000 stickers across 10 categories meeting each target", () => {
-    expect(catalog.length).toBeGreaterThanOrEqual(1000);
-    expect(CATEGORIES.length).toBe(10);
+  it("has at least 1,900 stickers across 20 categories meeting each target", () => {
+    expect(catalog.length).toBeGreaterThanOrEqual(1900);
+    expect(CATEGORIES.length).toBe(20);
     for (const [cat, n] of Object.entries(TARGETS)) expect(catalog.filter((s) => s.cat === cat).length).toBeGreaterThanOrEqual(n);
   });
   it("every sticker is animated, transparent and unique", () => {

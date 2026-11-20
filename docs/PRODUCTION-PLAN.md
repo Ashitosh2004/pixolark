@@ -12,10 +12,10 @@ on top of the existing codebase. Zero-database policy is absolute and unchanged.
 - Public room discovery via host beacons — `src/lib/pixel/discovery.ts` (kept as
   a live-direct source; superseded as the *primary* listing source by the signed
   static directory).
-- 1,052 generated animated stickers (2,116 asset files, 10 packs) with
+- 1,934 generated animated stickers (3,868 asset files, 20 packs) with
   versioned library + incoming-version guard — `scripts/build-stickers.ts`.
 - Local encrypted IndexedDB (keys + history, opt-in, 24h auto-delete).
-- Regional hierarchy (country → states) and language catalogs.
+- Regional hierarchy (country → states → cities) and language catalogs.
 
 ## Locked-in architecture decisions
 
@@ -80,9 +80,13 @@ on top of the existing codebase. Zero-database policy is absolute and unchanged.
   requests from surviving encrypted copies).
 - MLS research + decision (or documented deviation).
 - Region catalog extended to country/state/city (Kolhapur, Belgaum, Mumbai,
-  Pune, Bengaluru...), language directories.
-- Sticker packs extended toward the full 20-category list (already 1,052 assets;
-  add food/celebration/greetings/indian-culture packs via the generator).
+  Pune, Bengaluru...), language directories. ✅ 2026-11-21 — `REGIONS` now ships
+  per-state city lists; the create wizard, beacons, Discover filters and signed
+  manifests all carry `region`/`subRegion`/`city` end-to-end.
+- Sticker packs extended to the full 20-category list. ✅ 2026-11-21 — food,
+  greetings, celebration, india, nature, space, sports, music, travel and study
+  packs generated via `stickers:build`; the library is now 1,934 stickers
+  (3,868 asset files), version-guarded as before.
 - README, `.env.example`, `start.bat`, DEPLOYMENT/TESTING/SECURITY/RECOVERY docs.
 
 ## Honesty rules (from the spec, enforced)

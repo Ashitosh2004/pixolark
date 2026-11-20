@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Compass, Globe2, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
-import { CATEGORIES, fetchBeacons, LANGUAGES, REGIONS, roomFingerprint, type RoomBeacon } from "@/lib/pixel/discovery";
+import { CATEGORIES, fetchBeacons, LANGUAGES, REGIONS, regionMatches, regionPath, roomFingerprint, type RoomBeacon } from "@/lib/pixel/discovery";
 import { filterRooms, loadDirectory, type DirectoryRoom } from "@/lib/pixel/directory";
 import type { RoomManifest } from "@/lib/pixel/manifest";
 import { normalizeRoomId } from "@/lib/pixel/codec";
@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { Loader } from "./ui";
 
 const REGION_TAB_KEY = "pxc.discoverRegion";
+const REGION_COUNTRY_KEY = "pxc.discoverCountry";
 const REGION_OPTIONS = Object.entries(REGIONS).map(([key, node]) => ({ key, label: node.name }));
 
 type Availability = "unknown" | "checking" | "available" | "unavailable";
@@ -45,7 +46,12 @@ export function DiscoverView({ onJoin, onJoinManifest, probeRoom, joining, onBac
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [lang, setLang] = useState<string>("");
-  const [region, setRegion] = useState<string>(() => localStorage.getItem(REGION_TAB_KEY) ?? "International");
+  const [region, setRegion] = useState<string>(() => {
+    const saved = localStorage.getItem(REGION_COUNTRY_KEY);
+    return saved && saved in REGIONS ? saved : "International";
+  });
+  const [subRegion, setSubRegion] = useState("");
+  const [city, setCity] = useState("");
   const [code, setCode] = useState("");
 
   const refresh = useCallback(async () => {
@@ -61,6 +67,7 @@ export function DiscoverView({ onJoin, onJoinManifest, probeRoom, joining, onBac
   }, [refresh]);
 
   useEffect(() => { localStorage.setItem(REGION_TAB_KEY, tab); }, [tab]);
+  useEffect(() => { localStorage.setItem(REGION_COUNTRY_KEY, region); }, [region]);
 
   const beaconRoomIds = useMemo(() => new Set((beacons ?? []).map((b) => b.room)), [beacons]);
 
@@ -72,13 +79,16 @@ export function DiscoverView({ onJoin, onJoinManifest, probeRoom, joining, onBac
       category: cat ?? undefined,
       language: lang || undefined,
       country: tab === "regional" && region !== "International" ? region : undefined,
+      state: tab === "regional" && subRegion ? subRegion : undefined,
+      city: tab === "regional" && city ? city : undefined,
     });
-  }, [directory, beaconRoomIds, q, cat, lang, tab, region]);
+  }, [directory, beaconRoomIds, q, cat, lang, tab, region, subRegion, city]);
 
   const filtered = useMemo(() => {
     let list = beacons ?? [];
     if (tab === "regional") {
-      list = list.filter((b) => b.region === region || b.region.startsWith(`${region} ·`) || b.region.startsWith(`${region}/`));
+      const path = regionPath({ region: region === "International" ? "" : region, subRegion, city });
+      list = list.filter((b) => regionMatches(b.region, path));
     }
     if (cat) list = list.filter((b) => b.cat === cat);
     if (lang) list = list.filter((b) => b.lang === lang);
@@ -130,9 +140,23 @@ export function DiscoverView({ onJoin, onJoinManifest, probeRoom, joining, onBac
           <button className={cn("pixel-btn pixel-btn-sm flex-1", tab === "regional" && "pixel-btn-primary")} onClick={() => setTab("regional")}>🌍 My region</button>
         </div>
         {tab === "regional" && (
-          <select className="pixel-input" value={region} onChange={(e) => setRegion(e.target.value)} aria-label="Region">
-            {REGION_OPTIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
+          <div className="flex flex-wrap gap-2">
+            <select className="pixel-input" value={region} onChange={(e) => { setRegion(e.target.value); setSubRegion(""); setCity(""); }} aria-label="Country">
+              {REGION_OPTIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+            </select>
+            {(REGIONS[region]?.children ?? []).length > 0 && (
+              <select className="pixel-input" value={subRegion} onChange={(e) => { setSubRegion(e.target.value); setCity(""); }} aria-label="State">
+                <option value="">Any state</option>
+                {(REGIONS[region]?.children ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            )}
+            {(subRegion ? REGIONS[region]?.cities?.[subRegion] ?? [] : []).length > 0 && (
+              <select className="pixel-input" value={city} onChange={(e) => setCity(e.target.value)} aria-label="City">
+                <option value="">Any city</option>
+                {(REGIONS[region]?.cities?.[subRegion] ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+          </div>
         )}
         <div className="flex items-center gap-2">
           <Search size={14} className="shrink-0 text-muted-foreground" />

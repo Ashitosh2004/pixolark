@@ -23,6 +23,7 @@ dist-ssr
 # Environment files (keep .env.example committed; .env holds real values)
 .env
 .env.*
+!.env.example
 
 # Owner key material & seed identities — SECRETS, never commit
 keys/

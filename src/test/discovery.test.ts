@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { beaconOf, CATEGORIES, fetchBeacons, LANGUAGES, REGIONS, roomFingerprint } from "@/lib/pixel/discovery";
+import { beaconOf, CATEGORIES, fetchBeacons, LANGUAGES, REGIONS, regionMatches, regionPath, roomFingerprint } from "@/lib/pixel/discovery";
 
 function good(room = "PXROOM-AAAA") {
   return beaconOf(room, { name: "Test Room", desc: "A test room", cat: "Gaming", region: "", lang: "English", members: 3, cap: 12, hostName: "Host", hostId: "abcdef12" });
@@ -69,5 +69,42 @@ describe("room discovery beacons", () => {
     expect(CATEGORIES).toContain("Programming");
     expect(REGIONS["India"]!.children).toContain("Karnataka");
     expect(LANGUAGES).toContain("Kannada");
+  });
+
+  it("ships a three-level region catalog (country → state → city)", () => {
+    expect(REGIONS["India"]!.cities!["Karnataka"]).toContain("Bengaluru");
+    expect(REGIONS["India"]!.cities!["Maharashtra"]).toContain("Kolhapur");
+    expect(REGIONS["United States"]!.cities!["California"]).toContain("San Francisco");
+    // every listed city belongs to a listed state of its country
+    for (const node of Object.values(REGIONS)) {
+      for (const [state, cities] of Object.entries(node.cities ?? {})) {
+        expect(node.children, `${node.name}/${state}`).toContain(state);
+        expect(cities.length).toBeGreaterThan(0);
+      }
+    }
+    // International has no subdivisions
+    expect(REGIONS["International"]!.children).toBeUndefined();
+    expect(REGIONS["International"]!.cities).toBeUndefined();
+  });
+
+  it("builds region paths and matches beacons at country/state/city granularity", () => {
+    expect(regionPath({ region: "India", subRegion: "Karnataka", city: "Bengaluru" })).toBe("India · Karnataka · Bengaluru");
+    expect(regionPath({ region: "India", subRegion: "Karnataka" })).toBe("India · Karnataka");
+    expect(regionPath({ region: "India" })).toBe("India");
+    expect(regionPath({ region: "" })).toBe("");
+    // country selection matches everything below it
+    expect(regionMatches("India · Karnataka · Bengaluru", "India")).toBe(true);
+    expect(regionMatches("India · Karnataka", "India")).toBe(true);
+    expect(regionMatches("India", "India")).toBe(true);
+    // state selection matches its cities but not other states or shallower tags
+    expect(regionMatches("India · Karnataka · Bengaluru", "India · Karnataka")).toBe(true);
+    expect(regionMatches("India · Maharashtra", "India · Karnataka")).toBe(false);
+    expect(regionMatches("India", "India · Karnataka")).toBe(false);
+    // city selection is exact
+    expect(regionMatches("India · Karnataka · Bengaluru", "India · Karnataka · Bengaluru")).toBe(true);
+    expect(regionMatches("India · Karnataka · Mysuru", "India · Karnataka · Bengaluru")).toBe(false);
+    // legacy "/" separators and empty selection (no filter)
+    expect(regionMatches("India/Karnataka", "India")).toBe(true);
+    expect(regionMatches("anything", "")).toBe(true);
   });
 });

@@ -95,15 +95,63 @@ export const CATEGORIES = [
   "Memes", "Friendship", "Photography", "Travel", "Sports", "Entertainment", "Language Exchange",
 ] as const;
 
-export interface RegionNode { name: string; children?: string[] }
+/** Three-level region catalog: country → states → cities (city lists are per state). */
+export interface RegionNode { name: string; children?: string[]; cities?: Record<string, string[]> }
 export const REGIONS: Record<string, RegionNode> = {
-  India: { name: "India", children: ["Karnataka", "Maharashtra", "Goa", "Kerala", "Tamil Nadu", "Telangana", "Andhra Pradesh", "Delhi", "Gujarat", "Rajasthan", "Uttar Pradesh", "West Bengal", "Punjab", "Other"] },
-  "United States": { name: "United States", children: ["California", "New York", "Texas", "Florida", "Washington", "Other"] },
-  "United Kingdom": { name: "United Kingdom", children: ["England", "Scotland", "Wales", "Northern Ireland", "Other"] },
-  Canada: { name: "Canada", children: ["Ontario", "Quebec", "British Columbia", "Alberta", "Other"] },
-  Australia: { name: "Australia", children: ["New South Wales", "Victoria", "Queensland", "Other"] },
+  India: { name: "India", children: ["Karnataka", "Maharashtra", "Goa", "Kerala", "Tamil Nadu", "Telangana", "Andhra Pradesh", "Delhi", "Gujarat", "Rajasthan", "Uttar Pradesh", "West Bengal", "Punjab", "Other"], cities: {
+    Karnataka: ["Bengaluru", "Belgaum", "Mysuru", "Mangaluru", "Hubballi"],
+    Maharashtra: ["Mumbai", "Pune", "Nagpur", "Nashik", "Kolhapur"],
+    Goa: ["Panaji", "Margao"],
+    Kerala: ["Thiruvananthapuram", "Kochi", "Kozhikode"],
+    "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai"],
+    Telangana: ["Hyderabad", "Warangal"],
+    "Andhra Pradesh": ["Visakhapatnam", "Vijayawada"],
+    Delhi: ["New Delhi"],
+    Gujarat: ["Ahmedabad", "Surat", "Vadodara"],
+    Rajasthan: ["Jaipur", "Jodhpur", "Udaipur"],
+    "Uttar Pradesh": ["Lucknow", "Varanasi", "Kanpur"],
+    "West Bengal": ["Kolkata", "Howrah"],
+    Punjab: ["Ludhiana", "Amritsar"],
+  } },
+  "United States": { name: "United States", children: ["California", "New York", "Texas", "Florida", "Washington", "Other"], cities: {
+    California: ["Los Angeles", "San Francisco", "San Diego", "San Jose"],
+    "New York": ["New York City", "Buffalo", "Rochester"],
+    Texas: ["Houston", "Dallas", "Austin"],
+    Florida: ["Miami", "Orlando", "Tampa"],
+    Washington: ["Seattle", "Tacoma"],
+  } },
+  "United Kingdom": { name: "United Kingdom", children: ["England", "Scotland", "Wales", "Northern Ireland", "Other"], cities: {
+    England: ["London", "Manchester", "Birmingham", "Leeds"],
+    Scotland: ["Edinburgh", "Glasgow"],
+    Wales: ["Cardiff", "Swansea"],
+    "Northern Ireland": ["Belfast"],
+  } },
+  Canada: { name: "Canada", children: ["Ontario", "Quebec", "British Columbia", "Alberta", "Other"], cities: {
+    Ontario: ["Toronto", "Ottawa", "Mississauga"],
+    Quebec: ["Montreal", "Quebec City"],
+    "British Columbia": ["Vancouver", "Victoria"],
+    Alberta: ["Calgary", "Edmonton"],
+  } },
+  Australia: { name: "Australia", children: ["New South Wales", "Victoria", "Queensland", "Other"], cities: {
+    "New South Wales": ["Sydney", "Newcastle"],
+    Victoria: ["Melbourne", "Geelong"],
+    Queensland: ["Brisbane", "Gold Coast"],
+  } },
   International: { name: "International" },
 };
+
+/** Full display/filter path for a room's region: "Country · State · City" (missing levels skipped). */
+export function regionPath(meta: { region: string; subRegion?: string | undefined; city?: string | undefined }): string {
+  return [meta.region, meta.subRegion, meta.city].filter((s): s is string => !!s).join(" · ");
+}
+
+/** A beacon's region matches the selected path at country/state/city granularity
+ *  ("India" matches "India · Karnataka · Bengaluru"; "India · Karnataka" does not
+ *  match a beacon tagged only "India"). Also accepts legacy "/" separators. */
+export function regionMatches(beaconRegion: string, path: string): boolean {
+  if (!path) return true;
+  return beaconRegion === path || beaconRegion.startsWith(`${path} ·`) || beaconRegion.startsWith(`${path}/`);
+}
 
 export const LANGUAGES = ["English", "Hindi", "Kannada", "Marathi", "Tamil", "Telugu", "Malayalam", "Gujarati", "Bengali", "Spanish", "French", "German", "Portuguese", "Other"] as const;
 

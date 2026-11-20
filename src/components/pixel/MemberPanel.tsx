@@ -165,7 +165,7 @@ function RoomRules({ api, canAdmin }: { api: GroupApi; canAdmin: boolean }) {
     <div className="flex flex-col gap-3 text-sm">
       <div className="pixel-box bg-surface p-3 text-xs">
         <p><span className="font-semibold">Category:</span> {snap.meta.cat}</p>
-        <p><span className="font-semibold">Region:</span> {snap.meta.region || "â€”"} Â· <span className="font-semibold">Language:</span> {snap.meta.lang}</p>
+        <p><span className="font-semibold">Region:</span> {[snap.meta.region, snap.meta.subRegion, snap.meta.city].filter(Boolean).join(" · ") || "â€”"} Â· <span className="font-semibold">Language:</span> {snap.meta.lang}</p>
         <p><span className="font-semibold">Visibility:</span> {snap.meta.isPublic ? "Listed in Discover" : "Private (invite only)"}</p>
         <p><span className="font-semibold">Encryption:</span> sender-key chains, epoch {snap.epoch} â€” keys change whenever membership changes.</p>
       </div>

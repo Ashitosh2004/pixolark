@@ -30,7 +30,7 @@ import { createIdentity, type Identity } from "./crypto";
 import { memberIdOf, MAX_SKIPPED_KEPT, newSenderChain, openFromMember, openGroupMessage, openRecoveredMessage, peerChainFromDistribute, sealGroupMessage, sealToMember, type GroupWire, type PeerChain, type SenderChain, type SkippedKey } from "./groupcrypto";
 import { asSessionIdentity, loadGroupIdentity, createGroupIdentity, type GroupIdentity } from "./idb";
 import { publishSignal, subscribeSignal, ROOM_CLOSED } from "./signaling";
-import { publishBeacon, beaconOf, BEACON_INTERVAL_MS, type RoomBeacon } from "./discovery";
+import { publishBeacon, beaconOf, regionPath, BEACON_INTERVAL_MS, type RoomBeacon } from "./discovery";
 import type { Avatar } from "./pixelart";
 import { PeerSession } from "./session";
 
@@ -65,7 +65,9 @@ export interface GroupMeta {
   name: string;
   desc: string;
   cat: string;
-  region: string;
+  region: string; // country
+  subRegion: string; // state/province ("" = unset)
+  city: string; // city ("" = unset)
   lang: string;
   rules: string;
   cap: number;
@@ -162,7 +164,7 @@ class Emitter<E extends object> {
 }
 
 function emptyMeta(room: string): GroupMeta {
-  return { room, name: "New group", desc: "", cat: "General Chat", region: "", lang: "English", rules: "", cap: 12, isPublic: false, approval: false, historyShare: false, createdAt: Date.now() };
+  return { room, name: "New group", desc: "", cat: "General Chat", region: "", subRegion: "", city: "", lang: "English", rules: "", cap: 12, isPublic: false, approval: false, historyShare: false, createdAt: Date.now() };
 }
 
 /** Monotonic per-device chain generation so re-announced chains are never mistaken for replays. */
@@ -259,7 +261,9 @@ export class GroupSession {
       // Ownership recovery: same room id, epoch bumped so pre-outage keys are void.
       // The full roster (incl. still-pending requests) is preserved for re-approval.
       const s = args.saved;
-      g.snap = { ...s, epoch: s.epoch + 1, pinned: s.pinned, bans: s.bans, muted: s.muted, rules: s.rules, meta: { ...s.meta, ...args.meta } };
+      // `subRegion`/`city` are newer than some saved snapshots — normalize so the
+      // three-level region path never sees undefined on legacy local saves.
+      g.snap = { ...s, epoch: s.epoch + 1, pinned: s.pinned, bans: s.bans, muted: s.muted, rules: s.rules, meta: { ...s.meta, subRegion: s.meta.subRegion ?? "", city: s.meta.city ?? "", ...args.meta } };
       for (const r of s.roster) g.savedRoles.set(r.id, r.role);
     }
     // A STABLE identity can be supplied for community rooms: the host commitment
@@ -1156,6 +1160,10 @@ export class GroupSession {
       case "g-snap": {
         const snap = header.snap as GroupSnapshot | undefined;
         if (!snap || snap.meta?.room !== this.room) return;
+        // Older hosts don't send the city/state fields — normalize so every
+        // consumer (beacons, manifest registration, display) sees strings.
+        snap.meta.subRegion = snap.meta.subRegion ?? "";
+        snap.meta.city = snap.meta.city ?? "";
         const me = snap.roster.find((r) => r.id === this.myId);
         const prevEpoch = this.snap.epoch;
         const prevIds = new Set(this.snap.roster.map((r) => r.id));
@@ -1312,7 +1320,7 @@ export class GroupSession {
     const publish = (): Promise<boolean> => {
       if (this.closed) return Promise.resolve(true);
       const b: RoomBeacon = beaconOf(this.room, {
-        name: this.snap.meta.name, desc: this.snap.meta.desc, cat: this.snap.meta.cat, region: this.snap.meta.region, lang: this.snap.meta.lang,
+        name: this.snap.meta.name, desc: this.snap.meta.desc, cat: this.snap.meta.cat, region: regionPath(this.snap.meta), lang: this.snap.meta.lang,
         members: Math.max(1, this.onlineCount || 1), cap: this.snap.meta.cap, hostName: this.rosterEntry(this.myId)?.name ?? "Host", hostId: this.myId.slice(0, 16),
       });
       return publishBeacon(b);
@@ -1337,7 +1345,7 @@ export class GroupSession {
   /** Public room closed by the host: tell discovery, tombstone the signaling topic. */
   async closeRoom(): Promise<void> {
     if (this.role === "host") {
-      if (this.snap.meta.isPublic) void publishBeacon(beaconOf(this.room, { name: this.snap.meta.name, desc: "", cat: this.snap.meta.cat, region: this.snap.meta.region, lang: this.snap.meta.lang, members: 0, cap: this.snap.meta.cap, hostName: "", hostId: this.myId.slice(0, 16), closed: true }));
+      if (this.snap.meta.isPublic) void publishBeacon(beaconOf(this.room, { name: this.snap.meta.name, desc: "", cat: this.snap.meta.cat, region: regionPath(this.snap.meta), lang: this.snap.meta.lang, members: 0, cap: this.snap.meta.cap, hostName: "", hostId: this.myId.slice(0, 16), closed: true }));
       void publishSignal(this.room, "offer", ROOM_CLOSED);
       for (const c of [...this.conns.values()]) c.session.close(true);
       this.conns.clear();

@@ -11,7 +11,7 @@
  *   coordinator lease first, and the UI says "Room temporarily unavailable"
  *   when there is none. Never faked.
  */
-import { CATEGORIES, REGIONS, LANGUAGES } from "./discovery";
+import { CATEGORIES, REGIONS, LANGUAGES, regionMatches } from "./discovery";
 import { manifestIdOf, verifyManifest, verifyOwnerFingerprint, type DirectoryIndex, type RoomManifest } from "./manifest";
 
 /** Env: comma-separated mirror base URLs (e.g. https://dir1.example/room-directory,https://dir2...). */
@@ -133,7 +133,9 @@ export function filterRooms(rooms: DirectoryRoom[], f: DirectoryFilters): Direct
     if (f.category && m.category !== f.category) return false;
     if (f.language && !m.languages.includes(f.language)) return false;
     if (f.country) {
-      if (m.region !== f.country) return false;
+      // regionMatches also accepts legacy wizard manifests that stored one
+      // combined "Country · State" string in `region`.
+      if (!regionMatches(m.region, f.country)) return false;
       if (f.state) {
         if (m.subRegion !== f.state) return false;
         if (f.city && m.city !== f.city) return false;

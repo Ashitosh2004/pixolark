@@ -1,13 +1,13 @@
 {
- "version": "pxs1-8c5cca10bcf4",
- "generatedAt": "2026-11-12T18:40:59.028Z",
- "total": 1052,
- "verified": 1052,
- "animated": 1052,
+ "version": "pxs1-6e52c5355d9a",
+ "generatedAt": "2026-11-20T20:04:55.817Z",
+ "total": 1934,
+ "verified": 1934,
+ "animated": 1934,
  "missing": 0,
  "invalid": 0,
  "duplicates": 0,
- "bytes": 3575543,
+ "bytes": 6825151,
  "byCategory": {
   "love": {
    "verified": 112,
@@ -56,6 +56,56 @@
   },
   "festivals": {
    "verified": 84,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "food": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "greetings": {
+   "verified": 90,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "celebration": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "india": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "nature": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "space": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "sports": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "music": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "travel": {
+   "verified": 88,
+   "invalid": 0,
+   "duplicates": 0
+  },
+  "study": {
+   "verified": 88,
    "invalid": 0,
    "duplicates": 0
   }
