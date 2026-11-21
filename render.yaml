@@ -1,0 +1,24 @@
+# Render Blueprint — deploys the Pixolark coordinator (server/src/index.ts).
+#
+# The frontend deploys separately on Vercel (see vercel.json). Once this
+# service is live, point the frontend at it via a Vercel environment variable:
+#   VITE_COORDINATOR_URL=wss://pixolark-coordinator.onrender.com/coordinator
+# (VITE_* values are baked in at build time — redeploy the frontend after
+# setting or changing it.)
+#
+# The coordinator is in-memory by design: a restart or free-plan spin-down
+# clears the registry. Owners re-register and members re-join automatically;
+# the app shows honest "coordinator offline" states meanwhile.
+#
+# PORT is injected by Render (server/src/index.ts reads it; default 8787
+# locally). Render applies services from this file via "New + → Blueprint".
+services:
+  - type: web
+    name: pixolark-coordinator
+    runtime: bun
+    plan: free
+    region: singapore # closest to India; remove for the default (oregon)
+    buildCommand: bun install
+    startCommand: bun server/src/index.ts
+    healthCheckPath: /health
+    autoDeploy: true # every push to main redeploys the coordinator
