@@ -37,7 +37,7 @@ If Pixolark ever gains a database, it is a different product. See [`docs/DEPLOYM
 - **Rooms & Signaling:** Simple 6-digit room codes (e.g. `582914`), 1-click invite links, compact QR codes, and copyable invite/answer codes valid for 15 minutes — via the coordinator relay, the ntfy pub/sub fallback, or plain manual paste.
 - **Rich Media & File Sharing:** Encrypted file transfer (up to 250 MB in 1:1, 25 MB in groups) chunked with backpressure handling.
 - **Voice & Video Calls:** WebRTC DTLS-SRTP audio/video calls renegotiated directly over the secure channel.
-- **Pixel Sticker Library:** Over 1,900 animated pixel stickers across 20 categories with custom packs, favorites, and search.
+- **Pixel Sticker Library:** Over 2,300 animated pixel stickers across 24 categories with custom packs, favorites, and search.
 - **Custom Pixel Avatar Studio:** Built-in 8x8 pixel avatar editor with live painting, mirroring, random generation, and image uploads.
 - **Modern Messaging Tools:** Typing indicators, delivery/read receipts, replies, reactions, local search, message pinning, and delete-for-me.
 - **Retro Audio & Theming:** Authentic 8-bit sound synthesizer, sound effects toggle, and customizable dark/light retro themes.

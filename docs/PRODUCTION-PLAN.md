@@ -12,7 +12,7 @@ on top of the existing codebase. Zero-database policy is absolute and unchanged.
 - Public room discovery via host beacons — `src/lib/pixel/discovery.ts` (kept as
   a live-direct source; superseded as the *primary* listing source by the signed
   static directory).
-- 1,934 generated animated stickers (3,868 asset files, 20 packs) with
+- 2,318 generated animated stickers (4,636 asset files, 24 packs) with
   versioned library + incoming-version guard — `scripts/build-stickers.ts`.
 - Local encrypted IndexedDB (keys + history, opt-in, 24h auto-delete).
 - Regional hierarchy (country → states → cities) and language catalogs.
@@ -87,6 +87,10 @@ on top of the existing codebase. Zero-database policy is absolute and unchanged.
   greetings, celebration, india, nature, space, sports, music, travel and study
   packs generated via `stickers:build`; the library is now 1,934 stickers
   (3,868 asset files), version-guarded as before.
+- Sticker library extended beyond the original 20. ✅ 2026-11-21 — work, money,
+  tech and pets packs (12 concepts × 8 characters each) added via the same
+  pipeline; the library is now 2,318 stickers (4,636 asset files),
+  version `pxs1-91930c1c3cc8`.
 - README, `.env.example`, `start.bat`, DEPLOYMENT/TESTING/SECURITY/RECOVERY docs.
 
 ## Honesty rules (from the spec, enforced)
