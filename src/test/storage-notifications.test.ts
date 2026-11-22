@@ -3,6 +3,7 @@ import {
   exportBackup, importBackup, loadBookmarks, loadDraft, loadGroupSnapshot, loadRecentRooms,
   saveBookmark, saveDraft, saveGroupSnapshot, setRoomMuted, isRoomMuted, pushRecentRoom, removeBookmark,
 } from "@/lib/pixel/storage";
+import { b64url } from "@/lib/pixel/bytes";
 import { deliver, dndActive, mentionsMe, recentNotifications, setDndUntil } from "@/lib/pixel/notifications";
 
 beforeEach(() => {
@@ -79,6 +80,29 @@ describe("local storage layer", () => {
     const file = JSON.parse(json);
     file.ct = file.ct.slice(0, -2) + (file.ct.endsWith("A") ? "BB" : "AA");
     await expect(importBackup(JSON.stringify(file), "pw")).rejects.toThrow();
+  });
+
+  it("restores a backup encrypted with a different (legacy) iteration count", async () => {
+    // Simulate a backup written by an older build whose KDF strength differed:
+    // the format is self-describing, so restore honors the recorded `iter`
+    // instead of the current export strength (600 000).
+    const entry = JSON.stringify({ username: "bob" });
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const LEGACY_ITER = 150_000;
+    const ikm = await crypto.subtle.importKey("raw", new TextEncoder().encode("legacy pw"), "PBKDF2", false, ["deriveBits"]);
+    const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: LEGACY_ITER }, ikm, 256));
+    const key = await crypto.subtle.importKey("raw", bits, "AES-GCM", false, ["encrypt"]);
+    const pt = new TextEncoder().encode(JSON.stringify({ createdAt: Date.now(), entries: { "pxc.prefs.v1": entry } }));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, pt));
+    const legacy = JSON.stringify({ v: 1, kdf: "PBKDF2-SHA256", iter: LEGACY_ITER, salt: b64url(salt), iv: b64url(iv), ct: b64url(ct), createdAt: Date.now() });
+    const n = await importBackup(legacy, "legacy pw");
+    expect(n).toBe(1);
+    expect(JSON.parse(localStorage.getItem("pxc.prefs.v1")!).username).toBe("bob");
+
+    // An iteration count outside the sane range is rejected outright.
+    const hostile = JSON.stringify({ ...JSON.parse(legacy), iter: 50 });
+    await expect(importBackup(hostile, "legacy pw")).rejects.toThrow(/not a Pixolark backup/);
   });
 });
 

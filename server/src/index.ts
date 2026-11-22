@@ -17,7 +17,7 @@
  *
  * Run: bun server/src/index.ts   (or node with a TS loader; PORT env respected)
  */
-import http from "node:http";
+import http, { type IncomingMessage } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { RoomRegistry, LEASE_MS, RENEW_MS } from "./registry";
 import { checkRegistration, verifyOwnershipProof, authorizedKeys } from "./proof";
@@ -33,6 +33,7 @@ const MAX_FRAME_BYTES = 64 * 1024;
 /** Resource caps (env-overridable so tests can exercise them cheaply): protect
  *  small hosts from memory exhaustion while staying generous for humans. */
 const MAX_CONNECTIONS = Number(process.env["COORD_MAX_CONNECTIONS"] ?? 512);
+const MAX_CONNS_PER_IP = Number(process.env["COORD_MAX_CONNS_PER_IP"] ?? 8);
 const MAX_ROOMS_PER_CONN = Number(process.env["COORD_MAX_ROOMS_PER_CONN"] ?? 8);
 /** WS liveness: silent connections (dropped mobile links) are reaped so
  *  presence stays honest and memory stays bounded. */
@@ -61,6 +62,7 @@ const started = Date.now();
  *  registry wipe (startCoordinator is a singleton per process by design). */
 export const registry = new RoomRegistry();
 const conns = new Map<WebSocket, ConnState>();
+const connsPerIp = new Map<string, number>();
 let connSeq = 0;
 
 function send(ws: WebSocket, msg: ServerToClient): void {
@@ -85,10 +87,23 @@ function errorOf(ws: WebSocket, code: string, message: string, roomId?: string):
   send(ws, roomId ? { t: "error", code, message, roomId } : { t: "error", code, message });
 }
 
+/** Best-effort client IP for the per-connection cap. Behind a proxy (Render),
+ *  the platform overwrites X-Forwarded-For with the real client, so the first
+ *  entry is trusted there; direct/local connections fall back to the socket
+ *  address (header-less, so nothing is spoofable in that mode). */
+function clientIpOf(req: IncomingMessage): string {
+  const xff = req.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff.trim()) return xff.split(",")[0]!.trim();
+  return req.socket.remoteAddress ?? "unknown";
+}
+
 function rateLimited(st: ConnState, now = Date.now()): boolean {
   st.rate = st.rate.filter((t) => now - t < RATE_WINDOW_MS);
+  // Once over budget, refuse WITHOUT pushing another timestamp: a flood can no
+  // longer grow this array inside the window (memory stays bounded).
+  if (st.rate.length >= RATE_MAX) return true;
   st.rate.push(now);
-  return st.rate.length > RATE_MAX;
+  return false;
 }
 
 /** Presence names are public room metadata: cap length and strip control
@@ -250,8 +265,9 @@ function createWss(): WebSocketServer {
       cb(origin !== "" && origins.includes(origin), 403, "Origin not allowed by this coordinator.");
     },
   });
-  w.on("connection", (ws: WebSocket) => {
-    if (conns.size >= MAX_CONNECTIONS) {
+  w.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+    const ip = clientIpOf(req);
+    if (conns.size >= MAX_CONNECTIONS || (connsPerIp.get(ip) ?? 0) >= MAX_CONNS_PER_IP) {
       ws.close(1013, "coordinator-full"); // try-again-later; the client's backoff reconnects
       return;
     }
@@ -264,6 +280,14 @@ function createWss(): WebSocketServer {
       isAlive: true,
     };
     conns.set(ws, st);
+    connsPerIp.set(ip, (connsPerIp.get(ip) ?? 0) + 1);
+    // close and error can both fire; release exactly once by checking conns.
+    const release = (): void => {
+      if (!conns.delete(ws)) return;
+      const n = connsPerIp.get(ip) ?? 1;
+      if (n <= 1) connsPerIp.delete(ip);
+      else connsPerIp.set(ip, n - 1);
+    };
     send(ws, { t: "welcome", clientId: st.id, serverTime: Date.now(), nonce: st.nonce });
 
     ws.on("pong", () => {
@@ -273,11 +297,11 @@ function createWss(): WebSocketServer {
       void handle(ws, st, String(data)).catch(() => errorOf(ws, "internal", "Coordinator failed to handle that message."));
     });
     ws.on("close", () => {
-      conns.delete(ws);
+      release();
       for (const roomId of registry.dropConnection(st.id)) st.heldRooms.delete(roomId);
     });
     ws.on("error", () => {
-      conns.delete(ws);
+      release();
       registry.dropConnection(st.id);
     });
   });

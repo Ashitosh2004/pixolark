@@ -20,6 +20,7 @@ import { generateSigningKey, exportSigningPublicKeyRaw, ownerFingerprint, signMa
 // they are set here — BEFORE the dynamic import below — and unset in afterAll
 // so they can never leak into another test file's module instance.
 process.env["COORD_MAX_CONNECTIONS"] = "4";
+process.env["COORD_MAX_CONNS_PER_IP"] = "2";
 process.env["COORD_MAX_ROOMS"] = "3";
 process.env["COORD_MAX_ROOMS_PER_CONN"] = "2";
 process.env["COORD_MAX_MEMBERS"] = "3";
@@ -71,8 +72,11 @@ class Client {
   closeCode: number | undefined;
   ready: Promise<void>;
 
-  constructor(opts: { origin?: string } = {}) {
-    this.ws = new WebSocket(base, opts.origin ? { headers: { origin: opts.origin } } : undefined);
+  constructor(opts: { origin?: string; xff?: string } = {}) {
+    const headers: Record<string, string> = {};
+    if (opts.origin) headers["origin"] = opts.origin;
+    if (opts.xff) headers["x-forwarded-for"] = opts.xff;
+    this.ws = new WebSocket(base, Object.keys(headers).length ? { headers } : undefined);
     this.ws.on("message", (d) => {
       const m = JSON.parse(String(d)) as ServerToClient;
       if (m.t === "welcome") {
@@ -157,7 +161,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await stop();
-  for (const k of ["COORD_MAX_CONNECTIONS", "COORD_MAX_ROOMS", "COORD_MAX_ROOMS_PER_CONN", "COORD_MAX_MEMBERS", "COORD_PING_MS", "ALLOWED_ORIGINS"]) delete process.env[k];
+  for (const k of ["COORD_MAX_CONNECTIONS", "COORD_MAX_CONNS_PER_IP", "COORD_MAX_ROOMS", "COORD_MAX_ROOMS_PER_CONN", "COORD_MAX_MEMBERS", "COORD_PING_MS", "ALLOWED_ORIGINS"]) delete process.env[k];
 });
 
 describe("coordinator hardening", () => {
@@ -208,11 +212,11 @@ describe("coordinator hardening", () => {
 
   it("sanitizes presence names: control characters stripped, length capped", async () => {
     const { keys, manifest } = await makeOwner("Names Room", "555555");
-    const owner = new Client();
+    const owner = new Client({ xff: "10.0.0.1" });
     await owner.ready;
     owner.send({ t: "room.register", manifest, proof: await createOwnershipProof(manifest.roomId, keys.privateKey, owner.nonce) });
     await owner.next((m) => m.t === "room.registered");
-    const member = new Client();
+    const member = new Client({ xff: "10.0.0.2" });
     await member.ready;
     member.send({ t: "room.join", roomId: manifest.roomId, name: "\u202E reversed \u0001\u0002 " + "x".repeat(40) });
     const state = await member.next((m) => m.t === "room.state" && m.roomId === manifest.roomId);
@@ -227,19 +231,19 @@ describe("coordinator hardening", () => {
 
   it("caps live members per room with an honest room-full answer", async () => {
     const { keys, manifest } = await makeOwner("Full Room", "666666");
-    const owner = new Client();
+    const owner = new Client({ xff: "10.0.1.1" });
     await owner.ready;
     owner.send({ t: "room.register", manifest, proof: await createOwnershipProof(manifest.roomId, keys.privateKey, owner.nonce) });
     await owner.next((m) => m.t === "room.registered");
     const members: Client[] = [];
     for (let i = 0; i < 2; i++) {
-      const m = new Client();
+      const m = new Client({ xff: `10.0.1.${i + 2}` });
       await m.ready;
       m.send({ t: "room.join", roomId: manifest.roomId, name: `M${i}` });
       await m.next((x) => x.t === "room.state");
       members.push(m);
     }
-    const extra = new Client();
+    const extra = new Client({ xff: "10.0.1.4" });
     await extra.ready;
     extra.send({ t: "room.join", roomId: manifest.roomId, name: "Too late" });
     await extra.error("room-full");
@@ -281,7 +285,7 @@ describe("coordinator hardening", () => {
     const o3 = await makeOwner("A3", "777777");
     const b1 = await makeOwner("B1", "333333");
     const b2 = await makeOwner("B2", "444444");
-    const connA = new Client();
+    const connA = new Client({ xff: "10.0.2.1" });
     await connA.ready;
     for (const o of [o1, o2]) {
       connA.send({ t: "room.register", manifest: o.manifest, proof: await createOwnershipProof(o.manifest.roomId, o.keys.privateKey, connA.nonce) });
@@ -292,7 +296,7 @@ describe("coordinator hardening", () => {
     await connA.error("too-many-rooms");
 
     // A second connection fills the registry (3 rooms); the next is refused.
-    const connB = new Client();
+    const connB = new Client({ xff: "10.0.2.2" });
     await connB.ready;
     connB.send({ t: "room.register", manifest: b1.manifest, proof: await createOwnershipProof(b1.manifest.roomId, b1.keys.privateKey, connB.nonce) });
     await connB.next((m) => m.t === "room.registered" && m.roomId === b1.manifest.roomId);
@@ -305,14 +309,29 @@ describe("coordinator hardening", () => {
   it("refuses connections beyond the cap with close code 1013", async () => {
     const cs: Client[] = [];
     for (let i = 0; i < 4; i++) {
-      const c = new Client();
+      const c = new Client({ xff: `10.0.3.${i + 1}` });
       await c.ready;
       cs.push(c);
     }
-    const extra = new Client();
+    const extra = new Client({ xff: "10.0.3.5" });
     await extra.closed();
     expect(extra.closeCode).toBe(1013);
     for (const c of cs) await c.close();
+  });
+
+  it("caps concurrent connections per client IP, not just globally", async () => {
+    const a = new Client({ xff: "203.0.113.9" });
+    await a.ready;
+    const b = new Client({ xff: "203.0.113.9" });
+    await b.ready; // second connection from the same IP: fine
+    const c = new Client({ xff: "203.0.113.9" });
+    await c.closed(); // third from the same IP: refused by the per-IP cap
+    expect(c.closeCode).toBe(1013);
+    const d = new Client({ xff: "198.51.100.7" });
+    await d.ready; // a different IP is unaffected by the other IP's cap
+    await a.close();
+    await b.close();
+    await d.close();
   });
 
   it("enforces the origin allowlist when configured (unset stays public)", async () => {
@@ -322,7 +341,7 @@ describe("coordinator hardening", () => {
     base = `ws://127.0.0.1:${c2.port}/coordinator`;
     stop = c2.close;
 
-    const allowed = new Client({ origin: "https://pixolark.example" });
+    const allowed = new Client({ origin: "https://pixolark.example", xff: "10.0.4.1" });
     await allowed.ready; // handshake + welcome succeed
     await allowed.close();
 

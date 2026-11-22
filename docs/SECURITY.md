@@ -120,12 +120,14 @@ Pixolark group messaging uses a Signal-style sender-key ratchet (AES-GCM-256, EC
   (dead mobile links can no longer linger holding registry state), resource
   caps with honest refusals — 512 connections (close 1013), 8 rooms per
   connection (`too-many-rooms`), 256 rooms total (`registry-full`), 64 live
-  members per room (`room-full`) — an optional WS origin allowlist
-  (`ALLOWED_ORIGINS` env; unset = public coordinator, set it to your frontend's
-  origin in production), and a GET-only, `cache-control: no-store` `/health`
-  that reports live counts only. Note honestly what this is NOT: none of this
-  adds crypto at the coordinator, because it still sees only public-by-design
-  data — the encryption guarantee lives entirely in the client (above).
+  members per room (`room-full`) — a per-client-IP connection cap (default 8,
+  X-Forwarded-For aware behind proxies like Render) — an optional WS origin
+  allowlist (`ALLOWED_ORIGINS` env; unset = public coordinator, set it to your
+  frontend's origin in production), and a GET-only, `cache-control: no-store`
+  `/health` that reports live counts only. Note honestly what this is NOT: none
+  of this adds crypto at the coordinator, because it still sees only
+  public-by-design data — the encryption guarantee lives entirely in the client
+  (above).
 - In group rooms the **host's** device is the relay: it sees group metadata and
   can refuse/drop service, but content is sealed to recipients and cannot be
   forged (sender-key authentication). This is the central choke point described
@@ -171,6 +173,25 @@ Pixolark group messaging uses a Signal-style sender-key ratchet (AES-GCM-256, EC
   version matches*, *falls back to the encrypted inline file when versions
   differ*, *never trusts an unverified ID without a file*).
 
+## Site security headers (frontend)
+
+`vercel.json` ships hardened headers on every response (verified 2026-11-22
+against the built app in a real browser: **zero CSP violations** on the home
+and chat routes, fonts/images/hydration all working):
+
+- **Content-Security-Policy** — `default-src 'self'`; scripts limited to
+  same-origin (plus `'unsafe-inline'`, which the SSR hydration bootstrap
+  requires — so no third-party script can execute, but inline injection is not
+  distinguished); styles/fonts limited to self + Google Fonts; images to self,
+  data/blob URLs and the GIF provider; `object-src 'none'`, `base-uri 'self'`,
+  `frame-ancestors 'none'`; connections to self, HTTPS and WSS (ntfy fallback,
+  optional directory mirrors, coordinator — all build-time configurable, so
+  they cannot be pinned to fixed hosts).
+- **X-Frame-Options DENY**, **X-Content-Type-Options nosniff**,
+  **Referrer-Policy no-referrer**, **Permissions-Policy** (camera/mic
+  self-only for calls, everything else off) and **HSTS** (2 years,
+  includeSubDomains).
+
 ## Local storage: encrypted, device-local, disposable
 
 - **Membership identity:** per-room, non-extractable ECDH key pairs in
@@ -182,8 +203,11 @@ Pixolark group messaging uses a Signal-style sender-key ratchet (AES-GCM-256, EC
 - **Recovery registry:** the whole payload is encrypted at rest by a
   device-local non-extractable AES-GCM key; password exports use
   PBKDF2-SHA-256 (600 000 iterations). See [`RECOVERY.md`](RECOVERY.md).
-- **Backup:** passphrase → PBKDF2-SHA-256 (210 000 iterations) → AES-GCM, with
-  AES-GCM integrity rejecting tampered ciphertext and wrong passphrases (tests:
+- **Backup:** passphrase → PBKDF2-SHA-256 (600 000 iterations as of
+  2026-11-22, the OWASP 2023 recommendation; the format is self-describing, so
+  older backups recorded with fewer iterations still restore, and absurd
+  iteration counts in a crafted file are rejected) → AES-GCM, with AES-GCM
+  integrity rejecting tampered ciphertext and wrong passphrases (tests:
   `src/test/storage-notifications.test.ts`, `src/test/recovery.test.ts`).
 - Clearing site data genuinely wipes it — `clearEverything` is tested to leave
   an honest empty registry.
@@ -222,11 +246,11 @@ deploy".
   ciphertext, sizes and timing; self-hosting it removes that party
   (`DEPLOYMENT.md`).
 
-## Verification
-
-- `npx vitest run` — **14 test files / 99 tests, all passing (observed
+- `npx vitest run` — **14 test files / 101 tests, all passing (observed
   2026-11-22)**; see [`TESTING.md`](TESTING.md) for the full inventory and the
   recorded two-browser live validation.
+- `npm audit` — **0 vulnerabilities** (observed 2026-11-22, after raising the
+  bundled zod copies; lockfile committed).
 - `npx tsc --noEmit` (root) and `cd server && npx tsc --noEmit` — both exit 0
   (observed 2026-11-22).
 - Manual multi-device checklist: [`DEPLOYMENT.md`](DEPLOYMENT.md).

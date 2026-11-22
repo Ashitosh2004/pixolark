@@ -217,7 +217,15 @@ export function clearGroupSnapshot(room: string) {
 // NEVER included: identity keys (IndexedDB, non-extractable), group chain generations
 // (a restored stale counter could confuse replay checks - fresh devices re-derive them).
 
-const BACKUP_ITER = 210_000;
+/** Current export strength — OWASP 2023 recommends 600 000 for PBKDF2-SHA256.
+ *  Restore is self-describing (it honors the file's recorded `iter`), so older
+ *  backups encrypted with fewer iterations keep restoring; only exports made
+ *  before 2026-11-22 carry 210 000. */
+const BACKUP_ITER = 600_000;
+/** Accepted range for a backup file's recorded iteration count — rejects
+ *  absurdly weak or absurdly slow (DoS-by-file) values. */
+const BACKUP_ITER_MIN = 100_000;
+const BACKUP_ITER_MAX = 10_000_000;
 
 export interface BackupFile {
   v: 1;
@@ -238,9 +246,9 @@ function collectBackupEntries(): Record<string, string> {
   return out;
 }
 
-async function backupKey(passphrase: string, salt: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
+async function backupKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, iterations: number = BACKUP_ITER): Promise<CryptoKey> {
   const ikm = await crypto.subtle.importKey("raw", new TextEncoder().encode(passphrase), "PBKDF2", false, ["deriveBits"]);
-  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: BACKUP_ITER }, ikm, 256));
+  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, ikm, 256));
   const key = await crypto.subtle.importKey("raw", bits, "AES-GCM", false, ["encrypt", "decrypt"]);
   bits.fill(0);
   return key;
@@ -263,7 +271,14 @@ export async function importBackup(payload: string, passphrase: string): Promise
   let file: BackupFile;
   try { file = JSON.parse(payload) as BackupFile; } catch { throw new Error("That file is not a Pixolark backup."); }
   if (!file || file.v !== 1 || file.kdf !== "PBKDF2-SHA256" || !file.salt || !file.iv || !file.ct) throw new Error("That file is not a Pixolark backup.");
-  const key = await backupKey(passphrase, fromB64url(file.salt));
+  // The file is self-describing: derive with ITS recorded iteration count
+  // (validated, so a crafted file can't demand a billion iterations) — this
+  // keeps older backups importable as the export strength rises.
+  const iter = Number(file.iter);
+  if (!Number.isSafeInteger(iter) || iter < BACKUP_ITER_MIN || iter > BACKUP_ITER_MAX) {
+    throw new Error("That file is not a Pixolark backup.");
+  }
+  const key = await backupKey(passphrase, fromB64url(file.salt), iter);
   let pt: Uint8Array;
   try {
     pt = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64url(file.iv) }, key, fromB64url(file.ct)));

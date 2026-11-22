@@ -9,7 +9,7 @@ we never write down a pass we did not observe.
 
 | Command | What it does |
 | --- | --- |
-| `npx vitest run` (alias: `bun run test`) | Full unit/integration suite. **Observed 2026-11-22: 14 test files, 99 tests, all passing** (~22 s). |
+| `npx vitest run` (alias: `bun run test`) | Full unit/integration suite. **Observed 2026-11-22: 14 test files, 101 tests, all passing** (~22 s). |
 | `npx vitest` (alias: `bun run test:watch`) | Same suite in watch mode. |
 | `npx tsc --noEmit` | Strict TypeScript check from the repo root (`exactOptionalPropertyTypes` on). **Observed 2026-11-22: exit 0.** |
 | `cd server && npx tsc --noEmit` | Strict check for the coordinator (`server/tsconfig.json`). **Observed 2026-11-22: exit 0.** |
@@ -19,7 +19,7 @@ we never write down a pass we did not observe.
 
 Notes:
 
-- The suite count (14 files / 99 tests) is a snapshot **as observed on
+- The suite count (14 files / 101 tests) is a snapshot **as observed on
   2026-11-22**; the sticker tests in particular are regenerated assets and may
   change with catalog work. Re-run the command instead of trusting this line if
   it matters.
@@ -28,12 +28,12 @@ Notes:
   `bun test` (Bun's own runner) is **not** the entry point — the tests import
   from `vitest`.
 
-## Suite inventory (14 files / 99 tests)
+## Suite inventory (14 files / 101 tests)
 
 | Test file | Covers | Tests |
 | --- | --- | --- |
 | `src/test/coordinator.test.ts` | Real coordinator server + real WS client: registration, proofs, relay, restart | 8 |
-| `src/test/coordinator-hardening.test.ts` | Coordinator abuse surface: malformed/oversized frames, floods, room-id validation, name sanitization, connection/room/member caps, origin allowlist, heartbeat reaper | 10 |
+| `src/test/coordinator-hardening.test.ts` | Coordinator abuse surface: malformed/oversized frames, floods, room-id validation, name sanitization, connection/room/member/per-IP caps, origin allowlist, heartbeat reaper | 11 |
 | `src/test/coordinator-room.test.ts` | Coordinator↔room signaling glue against the real coordinator | 6 |
 | `src/test/group-crypto.test.ts` | Sender-key ratchet, replay/tamper/epoch rejection, gap recovery | 13 |
 | `src/test/group-identity-adapter.test.ts` | Per-room non-extractable identity → session identity adapter | 3 |
@@ -42,7 +42,7 @@ Notes:
 | `src/test/directory.test.ts` | Static signed directory client: verification, mirrors, filters, outage | 5 |
 | `src/test/discovery.test.ts` | Host beacons: dedupe, staleness, closed rooms, malformed input, fingerprints; three-level region catalog + `regionPath`/`regionMatches` | 8 |
 | `src/test/recovery.test.ts` | Encrypted local recovery registry: round-trip, export/import, wipe | 6 |
-| `src/test/storage-notifications.test.ts` | Prefs/drafts/bookmarks/recents/snapshots/backup + notification router | 11 |
+| `src/test/storage-notifications.test.ts` | Prefs/drafts/bookmarks/recents/snapshots/backup (incl. legacy-iteration restore) + notification router | 12 |
 | `src/test/signaling-rate.test.ts` | ntfy fallback transport: retries, tombstones, SSE/poll behavior, 429 backoff | 8 |
 | `src/test/stickers.test.ts` | Sticker catalog/assets/version guard + incoming-sticker rules | 7 |
 | `src/test/app-routing.test.tsx` | Route matching for `/` | 1 |
@@ -128,7 +128,7 @@ simulation, and not part of the vitest suite:
 - Anything failing, skipped, mocked or untested is labeled as such above.
 - The two-browser scenario is reported as a **manual live validation**, never as
   an automated test.
-- Re-run the suite before quoting the "14 files / 99 tests" number — this
+- Re-run the suite before quoting the "14 files / 101 tests" number — this
   document records what was observed on 2026-11-22.
 
 See also: [`ARCHITECTURE.md`](ARCHITECTURE.md) (design + honest limitations),
