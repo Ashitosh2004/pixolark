@@ -21,6 +21,7 @@ import http from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { RoomRegistry, LEASE_MS, RENEW_MS } from "./registry";
 import { checkRegistration, verifyOwnershipProof, authorizedKeys } from "./proof";
+import { isValidRoomId } from "../../src/lib/pixel/codec";
 import type { ClientToServer, ServerToClient } from "../../src/lib/pixel/coordinator-protocol";
 
 const PORT = Number(process.env["PORT"] ?? 8787);
@@ -29,6 +30,22 @@ const RATE_WINDOW_MS = 10_000;
 const RATE_MAX = 200;
 /** Wire-size caps — a coordinator is not a file host. */
 const MAX_FRAME_BYTES = 64 * 1024;
+/** Resource caps (env-overridable so tests can exercise them cheaply): protect
+ *  small hosts from memory exhaustion while staying generous for humans. */
+const MAX_CONNECTIONS = Number(process.env["COORD_MAX_CONNECTIONS"] ?? 512);
+const MAX_ROOMS_PER_CONN = Number(process.env["COORD_MAX_ROOMS_PER_CONN"] ?? 8);
+/** WS liveness: silent connections (dropped mobile links) are reaped so
+ *  presence stays honest and memory stays bounded. */
+const PING_MS = Number(process.env["COORD_PING_MS"] ?? 30_000);
+/** Optional WS origin allowlist (comma-separated). Unset = public coordinator:
+ *  any origin may connect, matching the beacon/ntfy semantics. Set it in
+ *  production (e.g. ALLOWED_ORIGINS=https://pixolark.vercel.app) so only your
+ *  frontend can use this coordinator. Read per (re)start, not at import. */
+const allowedOrigins = (): string[] =>
+  (process.env["ALLOWED_ORIGINS"] ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 interface ConnState {
   id: string;
@@ -36,6 +53,7 @@ interface ConnState {
   nonce: string; // per-connection replay guard for ownership proofs
   heldRooms: Set<string>;
   rate: number[]; // timestamps of recent messages
+  isAlive: boolean; // pong liveness for the heartbeat sweeper
 }
 
 const started = Date.now();
@@ -73,6 +91,24 @@ function rateLimited(st: ConnState, now = Date.now()): boolean {
   return st.rate.length > RATE_MAX;
 }
 
+/** Presence names are public room metadata: cap length and strip control
+ *  characters (C0/C1, bidi overrides & isolates, BOM) so names can't carry
+ *  invisible spoofing tricks. ZWJ/ZWNJ survive — emoji and Indic conjuncts
+ *  still render. Empty result falls back to the honest default name. */
+function cleanName(s: string): string {
+  const cleaned = s
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
+    .slice(0, 32)
+    .trim();
+  return cleaned || "Member";
+}
+
+/** Room ids on the wire must be canonical before any registry lookup — this
+ *  rejects type-confused or junk ids with the same rule the manifest uses. */
+function isRoomId(x: unknown): x is string {
+  return typeof x === "string" && isValidRoomId(x);
+}
+
 async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> {
   if (raw.length > MAX_FRAME_BYTES) return errorOf(ws, "frame-too-large", "Coordinator frames are capped at 64 KB.");
   let msg: ClientToServer;
@@ -88,7 +124,7 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
 
   switch (msg.t) {
     case "hello": {
-      st.name = typeof msg.name === "string" ? msg.name.slice(0, 32) : st.name;
+      if (typeof msg.name === "string") st.name = cleanName(msg.name);
       return;
     }
     case "ping": {
@@ -98,6 +134,9 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
     case "room.register": {
       const check = await checkRegistration(msg.manifest, msg.proof, st.nonce);
       if (!check.ok) return errorOf(ws, check.code, check.message);
+      if (st.heldRooms.size >= MAX_ROOMS_PER_CONN && !st.heldRooms.has(check.manifest.roomId)) {
+        return errorOf(ws, "too-many-rooms", `A connection may hold at most ${MAX_ROOMS_PER_CONN} rooms.`, check.manifest.roomId);
+      }
       const res = registry.register(check.manifest, st.id);
       if (!res.ok) return errorOf(ws, res.code!, res.message!, check.manifest.roomId);
       st.heldRooms.add(check.manifest.roomId);
@@ -108,6 +147,7 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
       return;
     }
     case "room.lease": {
+      if (!isRoomId(msg.roomId)) return errorOf(ws, "bad-frame", "Invalid room id.");
       const rec = registry.manifestOf(msg.roomId);
       if (!rec) return errorOf(ws, "room-unavailable", "This room is not registered on this coordinator.", msg.roomId);
       if (!(await verifyOwnershipProof(msg.proof, msg.roomId, authorizedKeys(rec), st.nonce))) {
@@ -119,6 +159,7 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
       return;
     }
     case "room.unregister": {
+      if (!isRoomId(msg.roomId)) return errorOf(ws, "bad-frame", "Invalid room id.");
       const rec = registry.manifestOf(msg.roomId);
       if (!rec) return;
       if (!(await verifyOwnershipProof(msg.proof, msg.roomId, authorizedKeys(rec), st.nonce))) {
@@ -129,12 +170,14 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
       return;
     }
     case "room.probe": {
+      if (!isRoomId(msg.roomId)) return errorOf(ws, "bad-frame", "Invalid room id.");
       // Availability = a live lease + live owner connection. Facts only.
       send(ws, { t: "room.probe", roomId: msg.roomId, available: registry.has(msg.roomId) });
       return;
     }
     case "room.join": {
-      const res = registry.join(msg.roomId, st.id, typeof msg.name === "string" ? msg.name.slice(0, 32) : "Member");
+      if (!isRoomId(msg.roomId)) return errorOf(ws, "bad-frame", "Invalid room id.");
+      const res = registry.join(msg.roomId, st.id, cleanName(typeof msg.name === "string" ? msg.name : ""));
       if (!res.ok || !res.manifest) {
         return errorOf(ws, res.code ?? "room-unavailable", "Room temporarily unavailable — its coordinator lease is not live right now.", msg.roomId);
       }
@@ -144,6 +187,7 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
       return;
     }
     case "room.leave": {
+      if (!isRoomId(msg.roomId)) return errorOf(ws, "bad-frame", "Invalid room id.");
       registry.leave(msg.roomId, st.id);
       st.heldRooms.delete(msg.roomId);
       broadcastRoom(msg.roomId, { t: "room.members", roomId: msg.roomId, members: registry.membersOf(msg.roomId) });
@@ -152,6 +196,7 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
     case "rtc": {
       // WebRTC signaling relay: offer/answer SDP is public data (contains ICE
       // candidates and key commitments, never message content).
+      if (!isRoomId(msg.roomId)) return errorOf(ws, "bad-frame", "Invalid room id.");
       if (typeof msg.to !== "string" || msg.data === undefined) return errorOf(ws, "bad-frame", "rtc relay needs `to` and `data`.");
       if (!registry.memberIds(msg.roomId).includes(st.id)) return errorOf(ws, "not-a-member", "Join the room before signaling.", msg.roomId);
       let target: WebSocket | null = null;
@@ -174,8 +219,13 @@ async function handle(ws: WebSocket, st: ConnState, raw: string): Promise<void> 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   if (url.pathname === "/health") {
+    if (req.method !== "GET") {
+      res.writeHead(405, { allow: "GET", "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "method-not-allowed" }));
+      return;
+    }
     const s = registry.stats();
-    res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" });
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*" });
     res.end(JSON.stringify({ ok: true, uptimeMs: Date.now() - started, rooms: s.rooms, connections: s.connectionsHeld }));
     return;
   }
@@ -189,18 +239,36 @@ let wss = createWss();
  *  tears the old one down; a fresh instance must re-attach its upgrade handler
  *  or every /coordinator handshake answers 404. */
 function createWss(): WebSocketServer {
-  const w = new WebSocketServer({ server, path: "/coordinator", maxPayload: MAX_FRAME_BYTES });
+  const origins = allowedOrigins();
+  const w = new WebSocketServer({
+    server,
+    path: "/coordinator",
+    maxPayload: MAX_FRAME_BYTES,
+    verifyClient: (info, cb) => {
+      if (origins.length === 0) return cb(true); // public coordinator (default)
+      const origin = typeof info.origin === "string" ? info.origin : "";
+      cb(origin !== "" && origins.includes(origin), 403, "Origin not allowed by this coordinator.");
+    },
+  });
   w.on("connection", (ws: WebSocket) => {
+    if (conns.size >= MAX_CONNECTIONS) {
+      ws.close(1013, "coordinator-full"); // try-again-later; the client's backoff reconnects
+      return;
+    }
     const st: ConnState = {
       id: `c${++connSeq}`,
       name: "Member",
       nonce: Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url"),
       heldRooms: new Set(),
       rate: [],
+      isAlive: true,
     };
     conns.set(ws, st);
     send(ws, { t: "welcome", clientId: st.id, serverTime: Date.now(), nonce: st.nonce });
 
+    ws.on("pong", () => {
+      st.isAlive = true;
+    });
     ws.on("message", (data) => {
       void handle(ws, st, String(data)).catch(() => errorOf(ws, "internal", "Coordinator failed to handle that message."));
     });
@@ -215,6 +283,27 @@ function createWss(): WebSocketServer {
   });
   return w;
 }
+
+/** Heartbeat sweeper: pings every connection and terminates the ones that
+ *  failed to pong since the last round. Dead silent links (elevator, tunnel)
+ *  otherwise linger for hours holding registry state — presence must reflect
+ *  live connections only. */
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+function startHeartbeat(): void {
+  if (heartbeatTimer) return;
+  heartbeatTimer = setInterval(() => {
+    for (const [ws, st] of conns) {
+      if (!st.isAlive) {
+        ws.terminate();
+        continue;
+      }
+      st.isAlive = false;
+      ws.ping();
+    }
+  }, PING_MS);
+  heartbeatTimer.unref?.();
+}
+startHeartbeat();
 
 // Registry events → live updates for members.
 registry.onRoomOffline = (roomId, reason) => {

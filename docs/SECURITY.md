@@ -109,8 +109,23 @@ Pixolark group messaging uses a Signal-style sender-key ratchet (AES-GCM-256, EC
   with a fresh, nonce-bound ECDSA proof, so the coordinator can never become a
   hidden store of "rooms that used to exist" and cannot be hijacked by someone
   who merely copied the public manifest.
-- Abuse controls: per-connection frame budget (200 messages / 10 s, 64 KB frame
-  cap) and honest error codes. `GET /health` reports live counts only.
+- Abuse controls (hardened 2026-11-22, every item pinned by
+  `src/test/coordinator-hardening.test.ts`): per-connection frame budget
+  (200 messages / 10 s → `rate-limited`), 64 KB frame cap (oversize → close
+  1009), malformed/unknown/non-object frames answered `bad-frame` without
+  killing the connection, canonical room-id validation on the wire before any
+  registry lookup, presence names stripped of control characters (C0/C1, bidi
+  overrides & isolates — ZWJ/ZWNJ kept so emoji and Indic conjuncts still
+  render) and capped at 32 chars, a heartbeat that reaps silent connections
+  (dead mobile links can no longer linger holding registry state), resource
+  caps with honest refusals — 512 connections (close 1013), 8 rooms per
+  connection (`too-many-rooms`), 256 rooms total (`registry-full`), 64 live
+  members per room (`room-full`) — an optional WS origin allowlist
+  (`ALLOWED_ORIGINS` env; unset = public coordinator, set it to your frontend's
+  origin in production), and a GET-only, `cache-control: no-store` `/health`
+  that reports live counts only. Note honestly what this is NOT: none of this
+  adds crypto at the coordinator, because it still sees only public-by-design
+  data — the encryption guarantee lives entirely in the client (above).
 - In group rooms the **host's** device is the relay: it sees group metadata and
   can refuse/drop service, but content is sealed to recipients and cannot be
   forged (sender-key authentication). This is the central choke point described
@@ -209,9 +224,9 @@ deploy".
 
 ## Verification
 
-- `npx vitest run` — **13 test files / 87 tests, all passing (observed
-  2026-11-20)**; see [`TESTING.md`](TESTING.md) for the full inventory and the
+- `npx vitest run` — **14 test files / 99 tests, all passing (observed
+  2026-11-22)**; see [`TESTING.md`](TESTING.md) for the full inventory and the
   recorded two-browser live validation.
 - `npx tsc --noEmit` (root) and `cd server && npx tsc --noEmit` — both exit 0
-  (observed 2026-11-20).
+  (observed 2026-11-22).
 - Manual multi-device checklist: [`DEPLOYMENT.md`](DEPLOYMENT.md).

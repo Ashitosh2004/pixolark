@@ -12,6 +12,10 @@
 #
 # PORT is injected by Render (server/src/index.ts reads it; default 8787
 # locally). Render applies services from this file via "New + → Blueprint".
+#
+# Recommended once your frontend's domain is final: restrict this coordinator
+# to it via an env var on the Render dashboard (Environment tab):
+#   ALLOWED_ORIGINS=https://your-site.vercel.app
 services:
   - type: web
     name: pixolark-coordinator

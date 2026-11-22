@@ -1,6 +1,6 @@
 # Testing Pixolark
 
-Everything in this file was verified by running the commands on **2026-11-21** on
+Everything in this file was verified by running the commands on **2026-11-22** on
 Windows (`bun` + `vitest 4.1.11`, `vite 8.3.8`). Numbers below are what a run
 actually reported, not targets. Failing or untested things are labeled as such —
 we never write down a pass we did not observe.
@@ -9,18 +9,18 @@ we never write down a pass we did not observe.
 
 | Command | What it does |
 | --- | --- |
-| `npx vitest run` (alias: `bun run test`) | Full unit/integration suite. **Observed 2026-11-21: 13 test files, 89 tests, all passing** (~67 s). |
+| `npx vitest run` (alias: `bun run test`) | Full unit/integration suite. **Observed 2026-11-22: 14 test files, 99 tests, all passing** (~22 s). |
 | `npx vitest` (alias: `bun run test:watch`) | Same suite in watch mode. |
-| `npx tsc --noEmit` | Strict TypeScript check from the repo root (`exactOptionalPropertyTypes` on). **Observed 2026-11-21: exit 0.** |
-| `cd server && npx tsc --noEmit` | Strict check for the coordinator (`server/tsconfig.json`). **Observed 2026-11-21: exit 0.** |
+| `npx tsc --noEmit` | Strict TypeScript check from the repo root (`exactOptionalPropertyTypes` on). **Observed 2026-11-22: exit 0.** |
+| `cd server && npx tsc --noEmit` | Strict check for the coordinator (`server/tsconfig.json`). **Observed 2026-11-22: exit 0.** |
 | `npx vite build` (alias: `bun run build`) | Full client + SSR + Nitro production build. |
 | `bun run stickers:build` | Regenerates/validates the generated sticker library (`scripts/build-stickers.ts`). Only needed when editing `stickercatalog.ts`/`stickerart.ts` — never hand-edit `public/stickers/` or `sticker-version.ts`. |
 | `bun run lint` / `bun run format` | ESLint / Prettier. |
 
 Notes:
 
-- The suite count (13 files / 89 tests) is a snapshot **as observed on
-  2026-11-21**; the sticker tests in particular are regenerated assets and may
+- The suite count (14 files / 99 tests) is a snapshot **as observed on
+  2026-11-22**; the sticker tests in particular are regenerated assets and may
   change with catalog work. Re-run the command instead of trusting this line if
   it matters.
 - Tests run under `vitest` (`vitest.config.ts`): jsdom by default,
@@ -28,11 +28,12 @@ Notes:
   `bun test` (Bun's own runner) is **not** the entry point — the tests import
   from `vitest`.
 
-## Suite inventory (13 files / 89 tests)
+## Suite inventory (14 files / 99 tests)
 
 | Test file | Covers | Tests |
 | --- | --- | --- |
 | `src/test/coordinator.test.ts` | Real coordinator server + real WS client: registration, proofs, relay, restart | 8 |
+| `src/test/coordinator-hardening.test.ts` | Coordinator abuse surface: malformed/oversized frames, floods, room-id validation, name sanitization, connection/room/member caps, origin allowlist, heartbeat reaper | 10 |
 | `src/test/coordinator-room.test.ts` | Coordinator↔room signaling glue against the real coordinator | 6 |
 | `src/test/group-crypto.test.ts` | Sender-key ratchet, replay/tamper/epoch rejection, gap recovery | 13 |
 | `src/test/group-identity-adapter.test.ts` | Per-room non-extractable identity → session identity adapter | 3 |
@@ -127,8 +128,8 @@ simulation, and not part of the vitest suite:
 - Anything failing, skipped, mocked or untested is labeled as such above.
 - The two-browser scenario is reported as a **manual live validation**, never as
   an automated test.
-- Re-run the suite before quoting the "13 files / 89 tests" number — this
-  document records what was observed on 2026-11-21.
+- Re-run the suite before quoting the "14 files / 99 tests" number — this
+  document records what was observed on 2026-11-22.
 
 See also: [`ARCHITECTURE.md`](ARCHITECTURE.md) (design + honest limitations),
 [`SECURITY.md`](SECURITY.md) (threat model), [`RECOVERY.md`](RECOVERY.md)

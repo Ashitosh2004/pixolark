@@ -19,6 +19,10 @@ import type { RoomManifest as Manifest } from "../../src/lib/pixel/manifest";
 export const LEASE_MS = 90_000;
 /** Owners renew roughly this often (with a fresh ownership proof). */
 export const RENEW_MS = 30_000;
+/** Resource caps (env-overridable so tests can exercise them cheaply): a
+ *  coordinator is honest shared infrastructure, not an unbounded store. */
+export const MAX_ROOMS = Number(process.env["COORD_MAX_ROOMS"] ?? 256);
+export const MAX_MEMBERS_PER_ROOM = Number(process.env["COORD_MAX_MEMBERS"] ?? 64);
 
 interface RoomRecord {
   manifest: Manifest;
@@ -62,6 +66,9 @@ export class RoomRegistry {
   /** Owner (or authorized co-owner) claims the lease for a verified manifest. */
   register(manifest: Manifest, ownerConn: string, now = Date.now()): RegisterResult {
     const existing = this.rooms.get(manifest.roomId);
+    if (!existing && this.rooms.size >= MAX_ROOMS) {
+      return { ok: false, code: "registry-full", message: "This coordinator is at capacity right now — try again later." };
+    }
     if (existing && existing.ownerConn !== ownerConn) {
       // Live lease held by someone else: no takeover, ever. Honest refusal.
       return { ok: false, code: "room-held", message: "This room is already registered by its owner on this coordinator." };
@@ -91,11 +98,14 @@ export class RoomRegistry {
   }
 
   /** Member join — always against a live lease; the registry never invents rooms. */
-  join(roomId: string, connId: string, name: string, now = Date.now()): { ok: boolean; code?: string; manifest?: Manifest; members?: RoomMember[] } {
+  join(roomId: string, connId: string, name: string, now = Date.now()): { ok: boolean; code?: string; message?: string; manifest?: Manifest; members?: RoomMember[] } {
     const rec = this.rooms.get(roomId);
     if (!rec || rec.leaseUntil <= now) {
       if (rec && rec.leaseUntil <= now) this.dropRoom(roomId, "lease-expired");
       return { ok: false, code: "room-unavailable" };
+    }
+    if (!rec.members.has(connId) && rec.members.size >= MAX_MEMBERS_PER_ROOM) {
+      return { ok: false, code: "room-full", message: "This room's live member list is full." };
     }
     rec.members.set(connId, { name, owner: connId === rec.ownerConn });
     this.onMembersChanged?.(roomId);
